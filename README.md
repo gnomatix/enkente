@@ -2,25 +2,40 @@
 
 !["enkente"](assets/images/enkente-o-image.png)
 
-Let's all do "The Weave".
+**Real-time Multi-faceted "Mind-Mapping" Datastore for Collaborative Storytelling & Brainstorming.**
 
-## Real-time Multi-faceted "Mind-Mapping" Datastore for Collaborative Storytelling & Brainstorming
+Let's all do "**The Weave**".
 
-### System User Requirements Specifications
 
-- Uses NLTK-based methods to process multi-user chat
-- Encodes all semantic and contextual meaning
-- In real-time, performs two-way (read-write) curation operations on all captured content
-- Data-encoding is rich and multi-level, supporting various methods of visualization and conceptualization
-- Leverages existing mature open-source NoSQL and Graph-based technologies
-- Uses mature, standard libraries in the field of natural language processing (NLP)
-- Real-time, web-based visualization and curation of concepts
-- REST API for query and retrieval of all level of entities and concepts
-- Uses Controlled Vocabularies and Ontologies to provide tag-based entity recognition (dbxref)
-- Command-line tools for all aspects of entity management and access
-- Namespacing support allowing dynamic contexts (session, individual, subject, project, date, etc.)
-- Data import / export supporting all relevant domain-specific data formats
-- Data import / export supporting other NoSQL or raw text uses
+
+## Overview
+
+**enkente** is a real-time collaborative platform designed to ingest multi-user chat streams and continuously encode semantic and contextual relationships. By leveraging structural Natural Language Processing (NLP) techniques, **enkente** transforms unstructured human conversations into rich, multi-dimensional, queryable mind-maps.
+
+Whether the group is engaging in formal brainstorming methodologies (like Six Thinking Hats, SCAMPER, or Five Whys), evaluating interpersonal alignment and disagreement, or telling abstract narrative stories, **enkente** actively tracks, parses, and connects ideas in real time. 
+
+## Features
+
+* **Real-time Semantic Extraction:** Ingests live conversations and encodes them into graph-centric models for real-time visualization and complex relationship mapping.
+* **Auto-Recognition of Methodologies:** Automatically recognizes structures like the Socratic Method or narrative storytelling to reflexively optimize the internal semantic processing engine.
+* **Jargon & Ambiguity Resolution:** Interactively highlights and seeks clarity on ambiguous topics, reducing contextual uncertainty across the group.
+* **Concept Attribution:** Tracks the provenance of concepts and provides metrics on team alignment, agreement, or contextual disagreement.
+* **User-Space & Embedded:** Built with a true zero-install development philosophy, utilizing self-contained tools (`mise`) and embedded databases (`BoltDB`).
+
+## Technology Stack
+
+The project relies on a deeply unified split-architecture:
+* **API & Storage Engine (Go):** High-performance ingestion API and data management using an embedded BoltDB instance.
+* **NLP Pipeline (Python):** Python-powered text analysis employing the widely-used NLTK libraries for tokenization, Named Entity Recognition, and ontology tagging.
+
+<img src="https://outrage.dataglut.org/assets/badges/ioa-aware-badge-provisional.svg" width="200px">
+
+## Documentation
+
+For an in-depth dive into the technical capabilities, architecture, and requirements, please refer to the `docs/` directory:
+* [System Requirements Spec](docs/requirements.md)
+* [Design Docs & Summaries](docs/design-docs/system-specs-summary.md)
+
 
 ## License: Business Source License (BSL)
 Copyright © 2026 GNOMATIX. All rights reserved.
