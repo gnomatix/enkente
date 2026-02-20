@@ -26,7 +26,7 @@ The project relies on a deeply unified split-architecture:
 * **API & Storage Engine (Go):** High-performance ingestion API and data management using an embedded BoltDB instance.
 * **NLP Pipeline (Python):** Python-powered text analysis employing the widely-used NLTK libraries for tokenization, Named Entity Recognition, and ontology tagging.
 
-<img src="https://outrage.dataglut.org/assets/badges/ioa-aware-badge-provisional.svg" width="200px">
+<img src="https://outrage.dataglut.org/assets/badges/ioa-aware-badge-provisional.svg" width="300px">
 
 ## Documentation
 
