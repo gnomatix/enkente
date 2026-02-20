@@ -1,15 +1,15 @@
 {
   "name": "enkente",
-  "version": "1.0.0",
-  "description": "enkente",
+  "version": "0.1.0",
+  "description": "Let's all do 'The Weave'.",
   "repository": {
     "type": "git",
     "url": "https://gitea.gnomatix.com/gnomatix/enkente"
   },
-  "license": "BSD-3-Clause",
+  "license": "BSL",
   "author": "Brett Whitty",
   "type": "commonjs",
-  "main": "\"\"",
+  "main": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   }

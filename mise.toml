@@ -1,4 +1,3 @@
 [tools]
-etcd = "latest"
 go = "latest"
 python = "latest"

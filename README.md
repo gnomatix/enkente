@@ -6,8 +6,6 @@
 
 Let's all do "**The Weave**".
 
-
-
 ## Overview
 
 **enkente** is a real-time collaborative platform designed to ingest multi-user chat streams and continuously encode semantic and contextual relationships. By leveraging structural Natural Language Processing (NLP) techniques, **enkente** transforms unstructured human conversations into rich, multi-dimensional, queryable mind-maps.
