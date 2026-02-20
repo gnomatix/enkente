@@ -1,0 +1,16 @@
+{
+  "name": "enkente",
+  "version": "1.0.0",
+  "description": "enkente",
+  "repository": {
+    "type": "git",
+    "url": "https://gitea.gnomatix.com/gnomatix/enkente"
+  },
+  "license": "BSD-3-Clause",
+  "author": "Brett Whitty",
+  "type": "commonjs",
+  "main": "\"\"",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

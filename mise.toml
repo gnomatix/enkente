@@ -1,0 +1,4 @@
+[tools]
+etcd = "latest"
+node = "lts"
+python = "latest"
