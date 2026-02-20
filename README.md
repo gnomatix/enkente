@@ -23,6 +23,8 @@ Let's all do "The Weave".
 - Data import / export supporting other NoSQL or raw text uses
 
 ## License: Business Source License (BSL)
-(C) GNOMATIX 2026 // ALL RIGHTS RESERVED
+Copyright (C) 2026 GNOMATIX. All rights reserved.
+
+This software is licensed under the Business Source License (BSL) version 1.1. Usage of this software is subject to the terms of the BSL. See the LICENSE file for details.
 !["KILLBOTS ACTIVATE!" ](assets/images/gnomatix-killbots-activate-xs.png "KILLBOTS ACTIVATE!")
 !["GNOMATIX" ](assets/images/gnomatix-new-xs.png "GNOMATIX")
