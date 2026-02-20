@@ -12,6 +12,7 @@ type AntigravityMessage struct {
 	SessionID string    `json:"sessionId"`
 	MessageID int       `json:"messageId"`
 	Type      string    `json:"type"`
+	User      string    `json:"user,omitempty"`
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
 }

@@ -1,12 +1,18 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
+import * as crypto from 'crypto';
 
 let enabled = true;
 let statusBarItem: vscode.StatusBarItem;
 let messageCount = 0;
+let cachedUsername = '';
+
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('enkente Chat Bridge activated');
+
+    // Resolve user identity
+    resolveUserIdentity();
 
     // Status bar indicator
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -89,7 +95,7 @@ async function postToEnkente(type: string, message: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('enkente');
     const apiUrl = config.get<string>('apiUrl', 'http://localhost:8080');
 
-    const payload = JSON.stringify({ type, message });
+    const payload = JSON.stringify({ type, user: cachedUsername || 'anonymous', message });
     const url = new URL('/ingest', apiUrl);
 
     return new Promise((resolve, reject) => {
@@ -136,4 +142,78 @@ function updateStatusBar() {
 
 export function deactivate() {
     console.log('enkente Chat Bridge deactivated');
+}
+
+async function resolveUserIdentity(): Promise<void> {
+    const config = vscode.workspace.getConfiguration('enkente');
+    const provider = config.get<string>('identityProvider', 'auto');
+
+    switch (provider) {
+        case 'github':
+            cachedUsername = await resolveGitHub() || 'unknown';
+            break;
+        case 'microsoft':
+            cachedUsername = await resolveMicrosoft() || 'unknown';
+            break;
+        case 'gpg':
+            cachedUsername = await resolveGPG() || 'unknown';
+            break;
+        case 'env':
+            cachedUsername = process.env['USER'] || process.env['USERNAME'] || 'unknown';
+            break;
+        case 'anonymous': {
+            const raw = await resolveGitHub() || await resolveMicrosoft()
+                || process.env['USER'] || process.env['USERNAME'] || 'unknown';
+            const hash = crypto.createHash('sha256').update(raw).digest('hex');
+            cachedUsername = `anon-${hash.substring(0, 8)}`;
+            break;
+        }
+        case 'auto':
+        default:
+            cachedUsername = await resolveGitHub()
+                || await resolveMicrosoft()
+                || process.env['USER'] || process.env['USERNAME'] || 'anonymous';
+            break;
+    }
+
+    console.log(`enkente: Identity resolved as '${cachedUsername}' (provider: ${provider})`);
+}
+
+async function resolveGitHub(): Promise<string | undefined> {
+    try {
+        const session = await vscode.authentication.getSession('github', ['user'], { createIfNone: false });
+        return session?.account.label;
+    } catch {
+        return undefined;
+    }
+}
+
+async function resolveMicrosoft(): Promise<string | undefined> {
+    try {
+        const session = await vscode.authentication.getSession('microsoft', ['openid', 'profile'], { createIfNone: false });
+        return session?.account.label;
+    } catch {
+        return undefined;
+    }
+}
+
+async function resolveGPG(): Promise<string | undefined> {
+    const { exec } = require('child_process') as typeof import('child_process');
+    return new Promise((resolve) => {
+        exec('gpg --list-keys --keyid-format long --with-colons 2>/dev/null', (err: Error | null, stdout: string) => {
+            if (err || !stdout) {
+                console.log('enkente: GPG not available or no keys found');
+                resolve(undefined);
+                return;
+            }
+            // Extract the first fingerprint (fpr line)
+            const fprLine = stdout.split('\n').find((l: string) => l.startsWith('fpr:'));
+            if (fprLine) {
+                const fingerprint = fprLine.split(':')[9];
+                resolve(`gpg-${fingerprint.substring(fingerprint.length - 16)}`);
+            } else {
+                resolve(undefined);
+            }
+        });
+    });
 }

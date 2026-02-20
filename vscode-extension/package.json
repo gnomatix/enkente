@@ -24,6 +24,20 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable the chat bridge"
+        },
+        "enkente.identityProvider": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "github", "microsoft", "gpg", "env", "anonymous"],
+          "enumDescriptions": [
+            "Automatically detect the best available identity (GitHub → Microsoft → env → anonymous)",
+            "Use the logged-in GitHub account name",
+            "Use the logged-in Microsoft account name",
+            "Use the GPG key fingerprint as a stable cryptographic user token",
+            "Use the OS username from environment variables",
+            "Generate a deterministic anonymized hash from the resolved identity"
+          ],
+          "description": "Which identity provider to use for attributing chat messages"
         }
       }
     },

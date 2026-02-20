@@ -120,7 +120,12 @@ func (m serveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		timeStr := lipgloss.NewStyle().Foreground(colorTime).Render("[" + msg.msg.Timestamp.Format(time.TimeOnly) + "]")
 		workerStr := lipgloss.NewStyle().Foreground(colorWorker).Bold(true).Render(fmt.Sprintf("[W%d]", msg.workerID))
 		countStr := lipgloss.NewStyle().Foreground(colorCount).Render(fmt.Sprintf("#%d", m.msgCount))
-		typeStr := lipgloss.NewStyle().Foreground(typeColor).Bold(true).Render(msg.msg.Type)
+
+		sender := msg.msg.Type
+		if msg.msg.User != "" {
+			sender = msg.msg.User
+		}
+		typeStr := lipgloss.NewStyle().Foreground(typeColor).Bold(true).Render(sender)
 		msgStr := lipgloss.NewStyle().Foreground(typeColor).Render(msg.msg.Message)
 
 		newLine := fmt.Sprintf("%s %s %s %s: %s\n", timeStr, workerStr, countStr, typeStr, msgStr)

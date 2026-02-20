@@ -13,6 +13,7 @@ import (
 // IngestRequest represents a message submitted via the REST API.
 type IngestRequest struct {
 	Type    string `json:"type"`
+	User    string `json:"user,omitempty"`
 	Message string `json:"message"`
 }
 
@@ -78,6 +79,7 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		SessionID: "live",
 		MessageID: 0,
 		Type:      req.Type,
+		User:      req.User,
 		Message:   req.Message,
 		Timestamp: time.Now(),
 	}
