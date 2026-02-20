@@ -1,4 +1,4 @@
 [tools]
 etcd = "latest"
-node = "lts"
+go = "latest"
 python = "latest"
