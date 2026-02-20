@@ -1,6 +1,10 @@
 # enkente
 
-## Real-time Multi-faceted "Mind-Mapping" Datastore of Collaborative English Language Storytelling & Brainstorming
+!["enkente"](assets/images/enkente-o-image.png)
+
+Let's all do "The Weave".
+
+## Real-time Multi-faceted "Mind-Mapping" Datastore for Collaborative Storytelling & Brainstorming
 
 ### System User Requirements Specifications
 
@@ -18,4 +22,7 @@
 - Data import / export supporting all relevant domain-specific data formats
 - Data import / export supporting other NoSQL or raw text uses
 
-## GNOMATIX 2026
+## License: Business Source License (BSL)
+(C) GNOMATIX 2026 // ALL RIGHTS RESERVED
+!["KILLBOTS ACTIVATE!" ](assets/images/gnomatix-killbots-activate-xs.png "KILLBOTS ACTIVATE!")
+!["GNOMATIX" ](assets/images/gnomatix-new-xs.png "GNOMATIX")
