@@ -8,6 +8,9 @@
 *   **Interactive Phrasing Assessment:** Users must be able to interactively test potential statements with the system (e.g., in a "draft" or "preview" mode). The system should evaluate alternative phrasings and provide feedback on whether it increases or reduces "uncertainty", "clarity", or "confusion" before the message is fully committed. Furthermore, other users can interact with the system's "listener" prompts to collaboratively clarify another person's ambiguous phrasing.
 *   **NLTK Core:** Use standard, mature NLP libraries (specifically NLTK) for tokenization, part-of-speech tagging, and named entity recognition.
 *   **Semantic Encoding:** Extract and encode contextual meaning, intent, and relationships from the text to establish the system's "understanding" of the story or brainstorm.
+*   **Topic Extraction & Clustering:** The system must identify emerging themes and sub-topics from the chat stream, automatically clustering related messages to help structure brainstorming sessions.
+*   **Sentiment & Tone Context:** Track the sentiment (positive, negative, neutral) and tone of the discussion to attach emotional context to the encoded relationships (e.g., separating "concerns" from "enthusiastic support").
+*   **Automated Summarization:** Generate real-time or on-demand summaries of specific conceptual branches or entire brainstorming sessions based on the accumulated NLP data.
 *   **Ontology Tagging (dbxref):** Integrate Controlled Vocabularies (CVs) and Ontologies to support tag-based entity recognition. The system must support loading domain-specific ontologies (e.g., standard subject area ontologies in biological research) to enrich entities.
 
 ## 2. Data Storage & Modeling
