@@ -8,6 +8,7 @@
 
 ## 2. Data Storage & Modeling
 *   **Multi-Model Datastore:** Leverage mature open-source NoSQL and Graph databases to store both the document-centric chat logs and the graph-centric semantic relationships between concepts.
+*   **Initial Data Ingestion (Testing):** For development and testing, the system will hook into and ingest Antigravity JSON chat logs, specifically extracting the text content of chat members' messages (along with useful metadata like timestamps).
 *   **Rich Data-Encoding:** The schema must support multi-level conceptualization, allowing data to be queried and shaped for completely different visualization paradigms (hierarchical trees, force-directed graphs, chronological timelines).
 *   **Dynamic Namespacing:** Implement robust namespacing to isolate and contextualize data by session, individual user, subject matter, overarching project, or temporal bounds.
 
