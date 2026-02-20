@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gnomatix/enkente/pkg/api"
 	"github.com/gnomatix/enkente/pkg/parser"
+	"github.com/gnomatix/enkente/pkg/theme"
 	"github.com/spf13/cobra"
 )
 
@@ -110,26 +111,12 @@ func (m serveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		colorTime := lipgloss.Color("240") // Dark Gray
 		colorCount := lipgloss.Color("5")  // Magenta
 
-		// Reserved color for system/AI messages
-		colorSystem := lipgloss.Color("69") // Muted blue-purple
-
-		// Curated palette for distinct user identities
-		userPalette := []lipgloss.Color{
-			lipgloss.Color("2"),   // Green
-			lipgloss.Color("3"),   // Yellow
-			lipgloss.Color("13"),  // Bright Magenta
-			lipgloss.Color("14"),  // Bright Cyan
-			lipgloss.Color("208"), // Orange
-			lipgloss.Color("159"), // Light Blue
-			lipgloss.Color("156"), // Light Green
-			lipgloss.Color("212"), // Pink
-			lipgloss.Color("220"), // Gold
-			lipgloss.Color("117"), // Sky Blue
-		}
+		// Wes Anderson palette for user colors
+		userPalette := theme.AllUserColors()
 
 		var senderColor lipgloss.Color
 		if msg.msg.Type == "system" {
-			senderColor = colorSystem
+			senderColor = theme.SystemColor
 		} else {
 			// Hash the user identity to a stable palette index
 			identity := msg.msg.User
