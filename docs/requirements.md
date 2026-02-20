@@ -2,6 +2,7 @@
 
 ## 1. Natural Language Processing (NLP) & Semantic Encoding
 *   **Real-time Chat Processing:** System must intercept or ingest multi-user chat streams in real-time.
+*   **Explicit Contextual Referencing:** The system must recognize and parse explicit mentions (e.g., `#graph_databases` or `@user`) within the chat stream to instantly pull and visualize associated historical context and relationships for that entity.
 *   **NLTK Core:** Use standard, mature NLP libraries (specifically NLTK) for tokenization, part-of-speech tagging, and named entity recognition.
 *   **Semantic Encoding:** Extract and encode contextual meaning, intent, and relationships from the text to establish the system's "understanding" of the story or brainstorm.
 *   **Ontology Tagging (dbxref):** Integrate Controlled Vocabularies (CVs) and Ontologies to support tag-based entity recognition. The system must support loading domain-specific ontologies (e.g., standard subject area ontologies in biological research) to enrich entities.
