@@ -1,4 +1,18 @@
-.mise.local.toml
+# Build artifacts
 bin/
-live_chat.json
+dist/
+release/
+
+# Runtime data
 default.etcd/
+live_chat.json
+*.db
+
+# Environment
+.mise.local.toml
+.env
+.env.local
+
+# OS
+Thumbs.db
+.DS_Store
