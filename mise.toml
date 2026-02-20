@@ -35,3 +35,8 @@ run = "make lint"
 [tasks.all]
 description = "Build Go binary and VS Code extension"
 depends = ["build", "extension"]
+
+[tasks.vsix]
+description = "Package the VS Code extension as a .vsix for sideloading"
+depends = ["extension"]
+run = "make vsix"

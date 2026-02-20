@@ -67,6 +67,12 @@ install:
 extension:
 	cd vscode-extension && npm install && npx tsc -p ./
 
+# Package the VS Code extension as a .vsix
+.PHONY: vsix
+vsix: extension
+	@mkdir -p $(DIST_DIR)
+	cd vscode-extension && npx -y @vscode/vsce package --allow-missing-repository -o ../$(DIST_DIR)/enkente-chat-bridge.vsix
+
 .PHONY: all
 all: build extension
 
