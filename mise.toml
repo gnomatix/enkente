@@ -1,3 +1,37 @@
 [tools]
 go = "latest"
+node = "latest"
 python = "latest"
+
+[tasks.build]
+description = "Build enkente for the current platform"
+run = "make build"
+
+[tasks.test]
+description = "Run all Go tests"
+run = "make test"
+
+[tasks.serve]
+description = "Build and run the enkente server"
+run = "make run"
+depends = ["build"]
+
+[tasks.release]
+description = "Cross-compile release binaries for all platforms"
+run = "make release"
+
+[tasks.extension]
+description = "Build the VS Code extension"
+run = "make extension"
+
+[tasks.clean]
+description = "Remove all build artifacts"
+run = "make clean"
+
+[tasks.lint]
+description = "Run go vet"
+run = "make lint"
+
+[tasks.all]
+description = "Build Go binary and VS Code extension"
+depends = ["build", "extension"]
