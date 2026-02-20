@@ -2,7 +2,7 @@
 
 !["enkente"](assets/images/enkente-o-image.png)
 
-**Real-time Multi-faceted "Mind-Mapping" Datastore for Collaborative Storytelling & Brainstorming.**
+**Real-time Multi-faceted "Mind-Mapping" Datastore for Collaborative Storytelling & Brainstorming**
 
 Let's all do "**The Weave**".
 
@@ -39,5 +39,7 @@ For an in-depth dive into the technical capabilities, architecture, and requirem
 Copyright © 2026 GNOMATIX. All rights reserved.
 
 This software is licensed under the Business Source License (BSL) version 1.1. Usage of this software is subject to the terms of the BSL. See the LICENSE file for details.
+
 !["KILLBOTS ACTIVATE!" ](assets/images/gnomatix-killbots-activate-xs.png "KILLBOTS ACTIVATE!")
+
 !["GNOMATIX" ](assets/images/gnomatix-new-xs.png "GNOMATIX")
