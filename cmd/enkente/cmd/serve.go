@@ -107,14 +107,40 @@ func (m serveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.msgCount++
 
 		colorWorker := lipgloss.Color("6") // Cyan
-		colorSystem := lipgloss.Color("4") // Blue
-		colorUser := lipgloss.Color("2")   // Green
 		colorTime := lipgloss.Color("240") // Dark Gray
 		colorCount := lipgloss.Color("5")  // Magenta
 
-		typeColor := colorSystem
-		if msg.msg.Type == "user" {
-			typeColor = colorUser
+		// Reserved color for system/AI messages
+		colorSystem := lipgloss.Color("69") // Muted blue-purple
+
+		// Curated palette for distinct user identities
+		userPalette := []lipgloss.Color{
+			lipgloss.Color("2"),   // Green
+			lipgloss.Color("3"),   // Yellow
+			lipgloss.Color("13"),  // Bright Magenta
+			lipgloss.Color("14"),  // Bright Cyan
+			lipgloss.Color("208"), // Orange
+			lipgloss.Color("159"), // Light Blue
+			lipgloss.Color("156"), // Light Green
+			lipgloss.Color("212"), // Pink
+			lipgloss.Color("220"), // Gold
+			lipgloss.Color("117"), // Sky Blue
+		}
+
+		var senderColor lipgloss.Color
+		if msg.msg.Type == "system" {
+			senderColor = colorSystem
+		} else {
+			// Hash the user identity to a stable palette index
+			identity := msg.msg.User
+			if identity == "" {
+				identity = msg.msg.Type
+			}
+			hash := uint(0)
+			for _, c := range identity {
+				hash = hash*31 + uint(c)
+			}
+			senderColor = userPalette[hash%uint(len(userPalette))]
 		}
 
 		timeStr := lipgloss.NewStyle().Foreground(colorTime).Render("[" + msg.msg.Timestamp.Format(time.TimeOnly) + "]")
@@ -125,8 +151,8 @@ func (m serveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.msg.User != "" {
 			sender = msg.msg.User
 		}
-		typeStr := lipgloss.NewStyle().Foreground(typeColor).Bold(true).Render(sender)
-		msgStr := lipgloss.NewStyle().Foreground(typeColor).Render(msg.msg.Message)
+		typeStr := lipgloss.NewStyle().Foreground(senderColor).Bold(true).Render(sender)
+		msgStr := lipgloss.NewStyle().Foreground(senderColor).Render(msg.msg.Message)
 
 		newLine := fmt.Sprintf("%s %s %s %s: %s\n", timeStr, workerStr, countStr, typeStr, msgStr)
 		m.content += newLine
