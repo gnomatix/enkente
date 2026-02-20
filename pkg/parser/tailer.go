@@ -8,14 +8,15 @@ import (
 // TailChatLog watches a given Antigravity JSON log file and streams new messages to the returned channel.
 // It also spins up `numWorkers` goroutines to process incoming messages concurrently using the provided `handler`.
 // It stops if the done channel is closed.
-func TailChatLog(filePath string, pollInterval time.Duration, numWorkers int, handler func(AntigravityMessage), done <-chan struct{}) error {
+func TailChatLog(filePath string, pollInterval time.Duration, numWorkers int, handler func(workerID int, msg AntigravityMessage), done <-chan struct{}) error {
 	out := make(chan AntigravityMessage, 100) // Buffer the channel to prevent blocking on fast writes
 
 	// Worker swarm: start the specified number of goroutines
 	for i := 0; i < numWorkers; i++ {
+		workerID := i
 		go func() {
 			for msg := range out {
-				handler(msg)
+				handler(workerID, msg)
 			}
 		}()
 	}

@@ -33,7 +33,7 @@ var _ = Describe("Live Tailer", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		processedCount := 0
-		handler := func(msg parser.AntigravityMessage) {
+		handler := func(workerID int, msg parser.AntigravityMessage) {
 			processedCount++
 		}
 

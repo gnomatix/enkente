@@ -36,13 +36,28 @@ func main() {
 		close(done)
 	}()
 
-	// The handler simply prints incoming messages to the console
-	handler := func(msg parser.AntigravityMessage) {
-		fmt.Printf("[%s] %s: %s\n", msg.Timestamp.Format(time.Kitchen), msg.Type, msg.Message)
+	// ANSI Color Codes
+	colorReset := "\033[0m"
+	colorWorker := "\033[36m" // Cyan
+	colorSystem := "\033[34m" // Blue
+	colorUser := "\033[32m"   // Green
+	colorTime := "\033[90m"   // Dark Gray
+
+	// The handler prints incoming messages to the console with ANSI colors indicating the worker
+	handler := func(workerID int, msg parser.AntigravityMessage) {
+		typeColor := colorSystem
+		if msg.Type == "user" {
+			typeColor = colorUser
+		}
+
+		fmt.Printf("%s[%s]%s %s[Worker-%d]%s %s%s: %s%s\n",
+			colorTime, msg.Timestamp.Format("15:04:05"), colorReset,
+			colorWorker, workerID, colorReset,
+			typeColor, msg.Type, msg.Message, colorReset)
 	}
 
-	// Spin up the tailer with 2 worker coroutines
-	err := parser.TailChatLog(logFile, 500*time.Millisecond, 2, handler, done)
+	// Spin up the tailer with 4 worker coroutines to see the swarm in action
+	err := parser.TailChatLog(logFile, 500*time.Millisecond, 4, handler, done)
 	if err != nil {
 		log.Fatalf("Failed to start tailer: %v", err)
 	}
