@@ -2,9 +2,10 @@
   "name": "enkente-chat-bridge",
   "displayName": "enkente Chat Bridge",
   "description": "Intercepts VS Code chat messages and forwards them to the enkente ingestion API",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "gnomatix",
   "license": "BSL-1.1",
+  "files": ["out/**", "scripts/**"],
   "engines": {
     "vscode": "^1.93.0"
   },
@@ -24,6 +25,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable the chat bridge"
+        },
+        "enkente.postMessageCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Optional command to run after each message (e.g., a script that forwards the message)"
         },
         "enkente.identityProvider": {
           "type": "string",
