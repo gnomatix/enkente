@@ -21,6 +21,11 @@ const (
 	ConceptsBySessionBucket = "ConceptsBySession"
 	EdgesBySourceBucket     = "EdgesBySource"
 	EdgesByTargetBucket     = "EdgesByTarget"
+
+	// Additional buckets for round 3 features
+	SentimentBucket  = "Sentiment"
+	NamespaceBucket  = "Namespaces"
+	ListenerBucket   = "Listener"
 )
 
 // NewBoltStorage opens the database at the given path and sets up initial buckets.
@@ -36,6 +41,7 @@ func NewBoltStorage(path string) (*BoltStorage, error) {
 		buckets := []string{
 			ChatBucket, ConceptBucket, EdgeBucket,
 			ConceptsBySessionBucket, EdgesBySourceBucket, EdgesByTargetBucket,
+			SentimentBucket, NamespaceBucket, ListenerBucket,
 		}
 		for _, b := range buckets {
 			_, err := tx.CreateBucketIfNotExists([]byte(b))
@@ -94,6 +100,17 @@ func (s *BoltStorage) Get(bucket, key string) ([]byte, error) {
 	}
 
 	return val, nil
+}
+
+// Delete removes a key from the specified bucket.
+func (s *BoltStorage) Delete(bucket, key string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		if b == nil {
+			return fmt.Errorf("bucket %s not found", bucket)
+		}
+		return b.Delete([]byte(key))
+	})
 }
 
 // PutJSON marshals the value to JSON and stores it in the specified bucket.
@@ -189,6 +206,43 @@ func (s *BoltStorage) AddToIndex(bucket, key, value string) error {
 
 		items = append(items, value)
 		data, err := json.Marshal(items)
+		if err != nil {
+			return fmt.Errorf("marshal index: %w", err)
+		}
+		return b.Put([]byte(key), data)
+	})
+}
+
+// RemoveFromIndex removes a value from a JSON array stored at the given key.
+func (s *BoltStorage) RemoveFromIndex(bucket, key, value string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		if b == nil {
+			return fmt.Errorf("bucket %s not found", bucket)
+		}
+
+		var items []string
+		existing := b.Get([]byte(key))
+		if existing == nil {
+			return nil
+		}
+		if err := json.Unmarshal(existing, &items); err != nil {
+			return fmt.Errorf("unmarshal index: %w", err)
+		}
+
+		// Remove the value
+		var filtered []string
+		for _, item := range items {
+			if item != value {
+				filtered = append(filtered, item)
+			}
+		}
+
+		if len(filtered) == 0 {
+			return b.Delete([]byte(key))
+		}
+
+		data, err := json.Marshal(filtered)
 		if err != nil {
 			return fmt.Errorf("marshal index: %w", err)
 		}
