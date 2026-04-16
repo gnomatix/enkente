@@ -75,6 +75,35 @@ func (g *ConceptGraph) AddEdge(e *Edge) {
 	g.inAdj[e.Target] = append(g.inAdj[e.Target], e.ID)
 }
 
+// RemoveConcept removes a concept from the graph by ID.
+// Callers should remove associated edges first via RemoveEdge.
+func (g *ConceptGraph) RemoveConcept(id string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.concepts, id)
+	delete(g.outAdj, id)
+	delete(g.inAdj, id)
+}
+
+// RemoveEdge removes an edge from the graph by ID and cleans up adjacency lists.
+func (g *ConceptGraph) RemoveEdge(id string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	e, ok := g.edges[id]
+	if !ok {
+		return
+	}
+
+	// Remove from outgoing adjacency
+	g.outAdj[e.Source] = removeFromSlice(g.outAdj[e.Source], id)
+	// Remove from incoming adjacency
+	g.inAdj[e.Target] = removeFromSlice(g.inAdj[e.Target], id)
+
+	delete(g.edges, id)
+}
+
 // GetConcept retrieves a concept by ID. Returns nil if not found.
 func (g *ConceptGraph) GetConcept(id string) *Concept {
 	g.mu.RLock()
@@ -305,4 +334,14 @@ func (g *ConceptGraph) Stats() GraphStats {
 // EdgeKey generates a deterministic edge ID from source, target, and relation type.
 func EdgeKey(source, target string, rel RelationType) string {
 	return fmt.Sprintf("%s-[%s]->%s", source, rel, target)
+}
+
+// removeFromSlice removes the first occurrence of val from a string slice.
+func removeFromSlice(slice []string, val string) []string {
+	for i, v := range slice {
+		if v == val {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }
