@@ -10,12 +10,17 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gnomatix/enkente/pkg/api"
+	"github.com/gnomatix/enkente/pkg/graph"
 	"github.com/gnomatix/enkente/pkg/parser"
+	"github.com/gnomatix/enkente/pkg/storage"
 	"github.com/gnomatix/enkente/pkg/theme"
 	"github.com/spf13/cobra"
 )
 
-var servePort int
+var (
+	servePort int
+	serveDB   string
+)
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -26,6 +31,21 @@ incoming messages in a real-time BubbleTea TUI with the worker swarm.
 Send messages with:
   curl -X POST http://localhost:8080/ingest -d '{"type":"user","message":"Hello!"}'`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Initialize storage and graph
+		var store *storage.BoltStorage
+		var g *graph.ConceptGraph
+
+		if serveDB != "" {
+			var err error
+			store, err = storage.NewBoltStorage(serveDB)
+			if err != nil {
+				log.Fatalf("Failed to open database %s: %v", serveDB, err)
+			}
+			defer store.Close()
+			g = graph.NewConceptGraph()
+			log.Printf("Storage: %s, graph initialized", serveDB)
+		}
+
 		p := tea.NewProgram(
 			initialServeModel(servePort),
 			tea.WithAltScreen(),
@@ -36,7 +56,7 @@ Send messages with:
 			p.Send(serveMsg{workerID: workerID, msg: msg})
 		}
 
-		server := api.NewServer(servePort, 4, handler)
+		server := api.NewServer(servePort, 4, handler, store, g)
 
 		go func() {
 			if err := server.Start(); err != nil {
@@ -53,6 +73,7 @@ Send messages with:
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
+	serveCmd.Flags().StringVar(&serveDB, "db", "enkente.db", "Path to BoltDB database file (empty to disable persistence)")
 }
 
 // Bubble Tea model for the serve command
