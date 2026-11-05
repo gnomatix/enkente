@@ -131,6 +131,18 @@ Both must be non-negative integers (`400` otherwise). An empty result is
 One message. `404` if the session or message does not exist, `400` if
 `messageId` is not a non-negative integer.
 
+### `DELETE /sessions/{sessionId}/messages/{messageId}`
+
+Removes one message. `204` on success, `404` if the session or message
+does not exist, `400` for a malformed `messageId`. The session's ID
+counter is not rewound, so a deleted ID is never reassigned.
+
+### `DELETE /sessions/{sessionId}`
+
+Removes a session and every message in it. `204` on success, `404` if the
+session does not exist. A session recreated afterwards starts its IDs
+afresh.
+
 ## Storage layout
 
 Inside the `ChatLogs` bucket, each session is a nested BoltDB bucket named by

@@ -57,6 +57,12 @@ func get(h http.Handler, path string) *httptest.ResponseRecorder {
 	return rr
 }
 
+func del(h http.Handler, path string) *httptest.ResponseRecorder {
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodDelete, path, nil))
+	return rr
+}
+
 func decodeInto(rr *httptest.ResponseRecorder, v any) {
 	Expect(rr.Header().Get("Content-Type")).To(Equal("application/json"))
 	Expect(json.Unmarshal(rr.Body.Bytes(), v)).To(Succeed())
@@ -153,10 +159,12 @@ var _ = Describe("Ingestion API", func() {
 			Expect(rec.last().Type).To(Equal("user"))
 		})
 
-		It("answers read endpoints with 503 because nothing is persisted", func() {
+		It("answers read and delete endpoints with 503 because nothing is persisted", func() {
 			Expect(get(h, "/sessions").Code).To(Equal(http.StatusServiceUnavailable))
 			Expect(get(h, "/sessions/live/messages").Code).To(Equal(http.StatusServiceUnavailable))
 			Expect(get(h, "/sessions/live/messages/1").Code).To(Equal(http.StatusServiceUnavailable))
+			Expect(del(h, "/sessions/live").Code).To(Equal(http.StatusServiceUnavailable))
+			Expect(del(h, "/sessions/live/messages/1").Code).To(Equal(http.StatusServiceUnavailable))
 		})
 	})
 
@@ -290,6 +298,37 @@ var _ = Describe("Ingestion API", func() {
 			Expect(get(h, "/sessions/nope/messages").Code).To(Equal(http.StatusNotFound))
 			Expect(get(h, "/sessions/live/messages/abc").Code).To(Equal(http.StatusBadRequest))
 			Expect(get(h, "/sessions/live/messages/-1").Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("deletes a single message and then a whole session", func() {
+			for _, text := range []string{"keep", "drop"} {
+				Expect(post(h, "/ingest", `{"sessionId":"d","type":"user","message":"`+text+`"}`).Code).To(Equal(http.StatusCreated))
+			}
+			var msgs []parser.AntigravityMessage
+			decodeInto(get(h, "/sessions/d/messages"), &msgs)
+			Expect(msgs).To(HaveLen(2))
+			dropID := itoa(msgs[1].MessageID)
+
+			rr := del(h, "/sessions/d/messages/"+dropID)
+			Expect(rr.Code).To(Equal(http.StatusNoContent))
+			Expect(rr.Body.Len()).To(BeZero())
+			Expect(del(h, "/sessions/d/messages/"+dropID).Code).To(Equal(http.StatusNotFound))
+			Expect(get(h, "/sessions/d/messages/"+dropID).Code).To(Equal(http.StatusNotFound))
+
+			decodeInto(get(h, "/sessions/d/messages"), &msgs)
+			Expect(msgs).To(HaveLen(1))
+			Expect(msgs[0].Message).To(Equal("keep"))
+
+			Expect(del(h, "/sessions/d/messages/abc").Code).To(Equal(http.StatusBadRequest))
+			Expect(del(h, "/sessions/nope/messages/1").Code).To(Equal(http.StatusNotFound))
+
+			Expect(del(h, "/sessions/d").Code).To(Equal(http.StatusNoContent))
+			Expect(get(h, "/sessions/d/messages").Code).To(Equal(http.StatusNotFound))
+			Expect(del(h, "/sessions/d").Code).To(Equal(http.StatusNotFound))
+
+			var sessions []storage.SessionInfo
+			decodeInto(get(h, "/sessions"), &sessions)
+			Expect(sessions).To(BeEmpty())
 		})
 
 		It("exports a session in a shape ParseChatLog can read back", func() {

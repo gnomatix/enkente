@@ -42,6 +42,8 @@ type MessageStore interface {
 	GetMessage(sessionID string, messageID int) (*parser.AntigravityMessage, error)
 	ListMessagesAfter(sessionID string, afterID int, limit int) ([]parser.AntigravityMessage, error)
 	ListSessions() ([]storage.SessionInfo, error)
+	DeleteMessage(sessionID string, messageID int) error
+	DeleteSession(sessionID string) error
 }
 
 // MaxListLimit caps the limit query parameter on message listings.
@@ -101,6 +103,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions", s.handleListSessions)
 	mux.HandleFunc("GET /sessions/{sessionId}/messages", s.handleListMessages)
 	mux.HandleFunc("GET /sessions/{sessionId}/messages/{messageId}", s.handleGetMessage)
+	mux.HandleFunc("DELETE /sessions/{sessionId}", s.handleDeleteSession)
+	mux.HandleFunc("DELETE /sessions/{sessionId}/messages/{messageId}", s.handleDeleteMessage)
 	return mux
 }
 
@@ -270,14 +274,23 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, messages)
 }
 
+// pathMessageID parses the {messageId} path value, writing a 400 on failure.
+func pathMessageID(w http.ResponseWriter, r *http.Request) (int, bool) {
+	messageID, err := strconv.Atoi(r.PathValue("messageId"))
+	if err != nil || messageID < 0 {
+		writeError(w, http.StatusBadRequest, "messageId must be a non-negative integer")
+		return 0, false
+	}
+	return messageID, true
+}
+
 func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 	if !s.requireStore(w) {
 		return
 	}
 	sessionID := r.PathValue("sessionId")
-	messageID, err := strconv.Atoi(r.PathValue("messageId"))
-	if err != nil || messageID < 0 {
-		writeError(w, http.StatusBadRequest, "messageId must be a non-negative integer")
+	messageID, ok := pathMessageID(w, r)
+	if !ok {
 		return
 	}
 	msg, err := s.store.GetMessage(sessionID, messageID)
@@ -290,4 +303,41 @@ func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, msg)
+}
+
+func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	sessionID := r.PathValue("sessionId")
+	messageID, ok := pathMessageID(w, r)
+	if !ok {
+		return
+	}
+	err := s.store.DeleteMessage(sessionID, messageID)
+	if errors.Is(err, storage.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "message not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete message")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	err := s.store.DeleteSession(r.PathValue("sessionId"))
+	if errors.Is(err, storage.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete session")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
