@@ -20,6 +20,21 @@ the TUI, but nothing is stored and the read endpoints answer `503`.
 Antigravity log file into a datastore, keyed by the log's own `sessionId`
 and `messageId`, so re-tailing a log is idempotent.
 
+Three headless subcommands work on a datastore without a terminal, for
+scripts and CI:
+
+```sh
+enkente import   --log logs.json --db enkente.db [--session <id>]
+enkente export   --db enkente.db [--session <id>] [--compact]   # JSON array to stdout
+enkente sessions --db enkente.db                                 # session table
+```
+
+`import` is idempotent (same identity overwrites). `--session` forces every
+imported message into one session, which is needed for logs without a
+`sessionId`. `export` without `--session` emits every session, ordered by
+session and then message ID; its output is re-ingestable by `import`,
+`tail`, or `parser.ParseChatLog`.
+
 BoltDB permits one process per file. A second `serve` or `tail` pointed at a
 datastore that is already open fails within two seconds with a "locked by
 another process" error rather than hanging. Use separate `--db` files for
