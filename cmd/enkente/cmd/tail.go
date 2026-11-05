@@ -129,14 +129,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		footerHeight := lipgloss.Height(m.footerView())
 		verticalMarginHeight := headerHeight + footerHeight
 
+		// Clamp so a tiny or unsized terminal cannot yield a negative viewport
+		// height, which panics inside viewport.GotoBottom.
+		bodyHeight := max(0, msg.Height-verticalMarginHeight)
+
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+			m.viewport = viewport.New(msg.Width, bodyHeight)
 			m.viewport.YPosition = headerHeight
 			m.viewport.HighPerformanceRendering = false
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
+			m.viewport.Height = bodyHeight
 		}
 
 	case tailMsg:
