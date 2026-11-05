@@ -73,7 +73,10 @@ func writeMessage(b *bbolt.Bucket, msg parser.AntigravityMessage) error {
 
 // PutMessage stores msg under its own session and message ID, replacing any
 // existing document with the same identity. Re-ingesting the same log file
-// is therefore idempotent.
+// is therefore idempotent. It is a plain upsert: if the session already holds
+// a message with that ID (for example one assigned by AppendMessage), that
+// message is overwritten. Log imports and API ingestion should therefore
+// target distinct sessions unless the log is imported first.
 func (s *BoltStorage) PutMessage(msg parser.AntigravityMessage) error {
 	if err := validateMessage(msg); err != nil {
 		return err
@@ -89,8 +92,8 @@ func (s *BoltStorage) PutMessage(msg parser.AntigravityMessage) error {
 
 // AppendMessage stores msg under its session with a freshly assigned message
 // ID, ignoring any MessageID already set on msg. IDs within a session are
-// strictly increasing and never reuse an ID written by PutMessage. The stored
-// message, including its assigned ID, is returned.
+// strictly increasing and never reuse an ID previously written by PutMessage.
+// The stored message, including its assigned ID, is returned.
 func (s *BoltStorage) AppendMessage(msg parser.AntigravityMessage) (parser.AntigravityMessage, error) {
 	msg.MessageID = 0
 	if err := validateMessage(msg); err != nil {

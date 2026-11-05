@@ -1,10 +1,17 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"go.etcd.io/bbolt"
 )
+
+// OpenTimeout bounds how long NewBoltStorage waits for the file lock. BoltDB
+// allows a single process per file; without a timeout a second opener blocks
+// forever with no diagnostic.
+const OpenTimeout = 2 * time.Second
 
 // BoltStorage provides an interface for the embedded BoltDB datastore.
 type BoltStorage struct {
@@ -19,9 +26,11 @@ const (
 
 // NewBoltStorage opens the database at the given path and sets up initial buckets.
 func NewBoltStorage(path string) (*BoltStorage, error) {
-	// Open the db with default options
-	db, err := bbolt.Open(path, 0600, nil)
+	db, err := bbolt.Open(path, 0600, &bbolt.Options{Timeout: OpenTimeout})
 	if err != nil {
+		if errors.Is(err, bbolt.ErrTimeout) {
+			return nil, fmt.Errorf("failed to open boltdb: %s is locked by another process (only one enkente process may hold a datastore at a time): %w", path, err)
+		}
 		return nil, fmt.Errorf("failed to open boltdb: %w", err)
 	}
 
