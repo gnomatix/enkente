@@ -111,8 +111,16 @@ Lists every session holding messages, ordered by session ID.
 
 ### `GET /sessions/{sessionId}/messages`
 
-All messages in the session, ordered by `messageId`. `404` if the session
-does not exist.
+Messages in the session, ordered by `messageId`. `404` if the session does
+not exist.
+
+| Query param | Notes |
+|-------------|-------|
+| `after`     | Return only messages with `messageId` greater than this. Use the last `messageId` seen to poll incrementally. |
+| `limit`     | Maximum number of messages to return. Default and cap are 1000. |
+
+Both must be non-negative integers (`400` otherwise). An empty result is
+`[]`, not `null`.
 
 ### `GET /sessions/{sessionId}/messages/{messageId}`
 

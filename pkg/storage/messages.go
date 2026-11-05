@@ -144,7 +144,19 @@ func (s *BoltStorage) GetMessage(sessionID string, messageID int) (*parser.Antig
 // ListMessages returns every message in a session ordered by message ID.
 // It returns ErrNotFound when the session does not exist.
 func (s *BoltStorage) ListMessages(sessionID string) ([]parser.AntigravityMessage, error) {
+	return s.ListMessagesAfter(sessionID, -1, 0)
+}
+
+// ListMessagesAfter returns the messages in a session whose ID is greater
+// than afterID, in ID order, stopping after limit messages when limit > 0.
+// Pass afterID = -1 to start from the first message. It seeks directly to
+// the first qualifying key, so polling with the last seen ID is cheap.
+// It returns ErrNotFound when the session does not exist.
+func (s *BoltStorage) ListMessagesAfter(sessionID string, afterID int, limit int) ([]parser.AntigravityMessage, error) {
 	messages := []parser.AntigravityMessage{}
+	if afterID < -1 {
+		afterID = -1
+	}
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b, err := sessionBucket(tx, sessionID, false)
 		if err != nil {
@@ -153,17 +165,21 @@ func (s *BoltStorage) ListMessages(sessionID string) ([]parser.AntigravityMessag
 		if b == nil {
 			return ErrNotFound
 		}
-		return b.ForEach(func(k, v []byte) error {
+		c := b.Cursor()
+		for k, v := c.Seek(messageKey(afterID + 1)); k != nil; k, v = c.Next() {
 			if v == nil {
-				return nil // nested bucket, not a message
+				continue // nested bucket, not a message
 			}
 			var msg parser.AntigravityMessage
 			if err := json.Unmarshal(v, &msg); err != nil {
 				return fmt.Errorf("unmarshal message %x in session %s: %w", k, sessionID, err)
 			}
 			messages = append(messages, msg)
-			return nil
-		})
+			if limit > 0 && len(messages) >= limit {
+				break
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err

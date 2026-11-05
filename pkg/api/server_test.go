@@ -240,6 +240,38 @@ var _ = Describe("Ingestion API", func() {
 			Expect(msgs[0].Message).To(Equal("b"))
 		})
 
+		It("supports incremental polling with after= and limit=", func() {
+			for _, text := range []string{"one", "two", "three", "four"} {
+				Expect(post(h, "/ingest", `{"type":"user","message":"`+text+`"}`).Code).To(Equal(http.StatusCreated))
+			}
+
+			var page []parser.AntigravityMessage
+			rr := get(h, "/sessions/live/messages?limit=2")
+			Expect(rr.Code).To(Equal(http.StatusOK))
+			decodeInto(rr, &page)
+			Expect(page).To(HaveLen(2))
+			Expect(page[0].Message).To(Equal("one"))
+			Expect(page[1].Message).To(Equal("two"))
+
+			var rest []parser.AntigravityMessage
+			decodeInto(get(h, "/sessions/live/messages?after="+itoa(page[1].MessageID)), &rest)
+			Expect(rest).To(HaveLen(2))
+			Expect(rest[0].Message).To(Equal("three"))
+			Expect(rest[1].Message).To(Equal("four"))
+
+			var none []parser.AntigravityMessage
+			rr = get(h, "/sessions/live/messages?after="+itoa(rest[1].MessageID))
+			Expect(rr.Code).To(Equal(http.StatusOK))
+			decodeInto(rr, &none)
+			Expect(none).To(BeEmpty())
+			Expect(rr.Body.String()).To(HavePrefix("[]"))
+
+			Expect(get(h, "/sessions/live/messages?after=x").Code).To(Equal(http.StatusBadRequest))
+			Expect(get(h, "/sessions/live/messages?after=-1").Code).To(Equal(http.StatusBadRequest))
+			Expect(get(h, "/sessions/live/messages?limit=-5").Code).To(Equal(http.StatusBadRequest))
+			Expect(get(h, "/sessions/nope/messages?after=1").Code).To(Equal(http.StatusNotFound))
+		})
+
 		It("serves a single message and 404s for unknown identities", func() {
 			rr := post(h, "/ingest", `{"type":"user","message":"single"}`)
 			var body struct {
