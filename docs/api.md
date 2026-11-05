@@ -75,7 +75,7 @@ Every stored message is an Antigravity-shaped JSON document:
 Messages are namespaced by `sessionId`; within a session, `messageId` is
 unique and ordering is by `messageId`. A session's message list is served in
 exactly this shape, so it can be saved to a file and fed back through
-`enkente tail` or `parser.ParseChatLog`.
+`enkente import`, `enkente tail` or `parser.ParseChatLog`.
 
 ## Endpoints
 
