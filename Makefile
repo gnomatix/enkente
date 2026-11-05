@@ -67,6 +67,11 @@ install:
 extension:
 	cd vscode-extension && npm install && npx tsc -p ./
 
+# Unit-test the VS Code extension's host-independent modules
+.PHONY: extension-test
+extension-test: extension
+	cd vscode-extension && npm test
+
 # Package the VS Code extension as a .vsix
 .PHONY: vsix
 vsix: extension
@@ -88,5 +93,6 @@ help:
 	@echo "  build-for   - Build for specific OS/ARCH (e.g. make build-for OS=linux ARCH=arm64)"
 	@echo "  install     - Install to GOPATH/bin"
 	@echo "  extension   - Build the VS Code extension"
+	@echo "  extension-test - Build and unit-test the VS Code extension"
 	@echo "  all         - Build Go binary + VS Code extension"
 	@echo "  help        - Show this help"
