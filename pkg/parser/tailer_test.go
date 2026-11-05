@@ -3,6 +3,7 @@ package parser_test
 import (
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -32,9 +33,12 @@ var _ = Describe("Live Tailer", func() {
 		err := os.WriteFile(tempFile, []byte("[]"), 0644)
 		Expect(err).NotTo(HaveOccurred())
 
-		processedCount := 0
+		// The handler runs on several worker goroutines, so the counter must
+		// be atomic for the test to be race-free.
+		var processed atomic.Int32
+		processedCount := func() int { return int(processed.Load()) }
 		handler := func(workerID int, msg parser.AntigravityMessage) {
-			processedCount++
+			processed.Add(1)
 		}
 
 		err = parser.TailChatLog(tempFile, 50*time.Millisecond, 2, handler, done)
@@ -53,7 +57,7 @@ var _ = Describe("Live Tailer", func() {
 		err = os.WriteFile(tempFile, []byte(testData1), 0644)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() int { return processedCount }, "1s").Should(Equal(1))
+		Eventually(processedCount, "1s").Should(Equal(1))
 
 		// Write a second message (extending the array)
 		testData2 := `[
@@ -74,9 +78,9 @@ var _ = Describe("Live Tailer", func() {
 		err = os.WriteFile(tempFile, []byte(testData2), 0644)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() int { return processedCount }, "1s").Should(Equal(2))
+		Eventually(processedCount, "1s").Should(Equal(2))
 
 		// Ensure no more messages are ready right now
-		Consistently(func() int { return processedCount }, "200ms").Should(Equal(2))
+		Consistently(processedCount, "200ms").Should(Equal(2))
 	})
 })
