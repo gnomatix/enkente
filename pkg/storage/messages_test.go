@@ -83,6 +83,40 @@ var _ = Describe("Chat Message Persistence", func() {
 		})
 	})
 
+	Describe("PutMessages", func() {
+		It("writes a batch across sessions in one transaction", func() {
+			Expect(dbStore.PutMessages([]parser.AntigravityMessage{
+				msg("a", 0, "a0"), msg("b", 0, "b0"), msg("a", 1, "a1"),
+			})).To(Succeed())
+
+			sessions, err := dbStore.ListSessions()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sessions).To(Equal([]storage.SessionInfo{
+				{SessionID: "a", MessageCount: 2},
+				{SessionID: "b", MessageCount: 1},
+			}))
+		})
+
+		It("writes nothing if any message in the batch is invalid", func() {
+			err := dbStore.PutMessages([]parser.AntigravityMessage{
+				msg("a", 0, "ok"), msg("", 1, "no session"),
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("message 1"))
+
+			sessions, err := dbStore.ListSessions()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sessions).To(BeEmpty())
+		})
+
+		It("keeps the sequence watermark so a later append does not collide", func() {
+			Expect(dbStore.PutMessages([]parser.AntigravityMessage{msg("a", 7, "x")})).To(Succeed())
+			appended, err := dbStore.AppendMessage(msg("a", 0, "y"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(appended.MessageID).To(Equal(8))
+		})
+	})
+
 	Describe("ListMessages", func() {
 		It("returns messages in numeric message-ID order regardless of insertion order", func() {
 			for _, id := range []int{300, 2, 1000, 0, 17} {
