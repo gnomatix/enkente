@@ -41,6 +41,10 @@ run = "make lint"
 description = "Syntax-check the PowerShell forwarder scripts"
 run = "make ps-lint"
 
+[tasks.ps-test]
+description = "Integration-test the PowerShell forwarders against a headless server"
+run = "make ps-test"
+
 [tasks.all]
 description = "Build Go binary and VS Code extension"
 depends = ["build", "extension"]

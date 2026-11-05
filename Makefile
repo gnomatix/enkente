@@ -35,6 +35,11 @@ PWSH ?= pwsh
 ps-lint:
 	$(PWSH) -NoProfile -NonInteractive -File tools/ps-lint.ps1
 
+# Integration-test the PowerShell forwarders against a headless server (needs pwsh)
+.PHONY: ps-test
+ps-test: build
+	$(PWSH) -NoProfile -NonInteractive -File tools/test-forwarders.ps1 -Binary $(DIST_DIR)/$(APP_NAME)$(shell go env GOEXE)
+
 # Clean build artifacts
 .PHONY: clean
 clean:
@@ -95,6 +100,7 @@ help:
 	@echo "  test        - Run all tests"
 	@echo "  lint        - Run go vet"
 	@echo "  ps-lint     - Syntax-check the PowerShell scripts"
+	@echo "  ps-test     - Integration-test the PowerShell forwarders against a headless server"
 	@echo "  clean       - Remove dist/ and release/ dirs"
 	@echo "  release     - Cross-compile for all platforms (output: release/)"
 	@echo "  build-for   - Build for specific OS/ARCH (e.g. make build-for OS=linux ARCH=arm64)"
