@@ -1,9 +1,15 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
+	"slices"
+	"strconv"
+	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -21,10 +27,63 @@ var (
 
 	exportDB      string
 	exportSession string
+	exportFormat  string
 	exportCompact bool
 
 	sessionsDB string
 )
+
+// exportFormats lists the values accepted by export --format, in the order
+// they are named in the usage error.
+var exportFormats = []string{"json", "jsonl", "csv"}
+
+// exportCSVHeader is the first row of a csv export. Its column names match
+// the JSON field names of parser.AntigravityMessage.
+var exportCSVHeader = []string{"sessionId", "messageId", "type", "user", "message", "timestamp"}
+
+// writeExport writes msgs to w in the given format. compact only affects
+// json; jsonl is always one compact object per line and csv has no
+// alternative layout.
+func writeExport(w io.Writer, format string, msgs []parser.AntigravityMessage, compact bool) error {
+	switch format {
+	case "json":
+		enc := json.NewEncoder(w)
+		if !compact {
+			enc.SetIndent("", "  ")
+		}
+		return enc.Encode(msgs)
+	case "jsonl":
+		enc := json.NewEncoder(w)
+		for _, msg := range msgs {
+			if err := enc.Encode(msg); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "csv":
+		cw := csv.NewWriter(w)
+		if err := cw.Write(exportCSVHeader); err != nil {
+			return err
+		}
+		for _, msg := range msgs {
+			row := []string{
+				msg.SessionID,
+				strconv.Itoa(msg.MessageID),
+				msg.Type,
+				msg.User,
+				msg.Message,
+				msg.Timestamp.Format(time.RFC3339Nano),
+			}
+			if err := cw.Write(row); err != nil {
+				return err
+			}
+		}
+		cw.Flush()
+		return cw.Error()
+	default:
+		return fmt.Errorf("unknown export format %q: must be one of %s", format, strings.Join(exportFormats, ", "))
+	}
+}
 
 var importCmd = &cobra.Command{
 	Use:   "import",
@@ -90,14 +149,29 @@ is opened, and all messages are written in a single transaction.`,
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "Export stored messages as an Antigravity-shaped JSON array",
-	Long: `Writes messages from the datastore to stdout as a JSON array in the
-Antigravity chat-log shape, ordered by session and then message ID. The
-output can be fed back to import, tail, or parser.ParseChatLog.
+	Short: "Export stored messages as JSON, JSON Lines or CSV",
+	Long: `Writes messages from the datastore to stdout, ordered by session and then
+message ID, in one of three formats chosen with --format:
 
-With --session only that session is exported; otherwise every session is.`,
+  json   (default) a JSON array in the Antigravity chat-log shape. The
+         output can be fed back to import, tail, or parser.ParseChatLog.
+         --compact emits it on a single line instead of indented.
+  jsonl  one compact JSON object per line, with the same field names as
+         json, for streaming tools and line-oriented NoSQL loaders.
+  csv    a header row (sessionId,messageId,type,user,message,timestamp)
+         followed by one row per message, quoted as encoding/csv requires;
+         timestamps are RFC 3339 with nanoseconds, as stored.
+
+--compact only affects json. With --session only that session is exported;
+otherwise every session is.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Reject a bad format before touching the datastore so a typo never
+		// creates an empty database file.
+		if !slices.Contains(exportFormats, exportFormat) {
+			return fmt.Errorf("unknown export format %q: must be one of %s", exportFormat, strings.Join(exportFormats, ", "))
+		}
+
 		store, err := storage.NewBoltStorage(exportDB)
 		if err != nil {
 			return err
@@ -126,11 +200,7 @@ With --session only that session is exported; otherwise every session is.`,
 			all = append(all, msgs...)
 		}
 
-		enc := json.NewEncoder(cmd.OutOrStdout())
-		if !exportCompact {
-			enc.SetIndent("", "  ")
-		}
-		return enc.Encode(all)
+		return writeExport(cmd.OutOrStdout(), exportFormat, all, exportCompact)
 	},
 }
 
@@ -169,7 +239,8 @@ func init() {
 
 	exportCmd.Flags().StringVar(&exportDB, "db", "enkente.db", "Path to the BoltDB datastore")
 	exportCmd.Flags().StringVar(&exportSession, "session", "", "Export only this sessionId")
-	exportCmd.Flags().BoolVar(&exportCompact, "compact", false, "Emit single-line JSON instead of indented")
+	exportCmd.Flags().StringVar(&exportFormat, "format", "json", "Output format: json (array), jsonl (one object per line) or csv")
+	exportCmd.Flags().BoolVar(&exportCompact, "compact", false, "Emit single-line JSON instead of indented (json format only; ignored for jsonl and csv)")
 
 	sessionsCmd.Flags().StringVar(&sessionsDB, "db", "enkente.db", "Path to the BoltDB datastore")
 }

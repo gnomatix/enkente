@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -214,6 +216,125 @@ var _ = Describe("Headless datastore commands", func() {
 			_, err := run("export", "--db", dbPath, "--session", "missing", "--compact=false")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("missing"))
+		})
+
+		Describe("--format", func() {
+			It("defaults to the indented JSON array when --format is not given", func() {
+				out, err := run("export", "--db", dbPath, "--session", "1ee3cafd")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(out).To(HavePrefix("[\n  {\n    \"sessionId\": \"1ee3cafd\""))
+				Expect(out).To(HaveSuffix("}\n]\n"))
+
+				var msgs []parser.AntigravityMessage
+				Expect(json.Unmarshal([]byte(out), &msgs)).To(Succeed())
+				Expect(msgs).To(HaveLen(2))
+			})
+
+			It("still honours --compact for the explicit json format", func() {
+				out, err := run("export", "--db", dbPath, "--session", "", "--format", "json", "--compact")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Count([]byte(out), []byte("\n"))).To(Equal(1))
+				Expect(out).To(HavePrefix("[{"))
+			})
+
+			It("writes jsonl as one parseable compact object per line", func() {
+				out, err := run("export", "--db", dbPath, "--session", "", "--format", "jsonl")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(out).To(HaveSuffix("\n"))
+				Expect(out).NotTo(HavePrefix("["))
+
+				lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+				Expect(lines).To(HaveLen(3))
+
+				var msgs []parser.AntigravityMessage
+				for _, line := range lines {
+					Expect(line).To(HavePrefix("{"))
+					Expect(line).To(HaveSuffix("}"), "no trailing comma or array syntax on %q", line)
+					var msg parser.AntigravityMessage
+					Expect(json.Unmarshal([]byte(line), &msg)).To(Succeed(), "line %q", line)
+					msgs = append(msgs, msg)
+				}
+				Expect(msgs[0].SessionID).To(Equal("1ee3cafd"))
+				Expect(msgs[0].MessageID).To(Equal(0))
+				Expect(msgs[1].MessageID).To(Equal(1))
+				Expect(msgs[1].Message).To(Equal("Yes, I can!"))
+				Expect(msgs[2].SessionID).To(Equal("other"))
+
+				// jsonl carries the same documents as the compact json array.
+				arr, err := run("export", "--db", dbPath, "--session", "", "--format", "json", "--compact")
+				Expect(err).NotTo(HaveOccurred())
+				var fromArray []parser.AntigravityMessage
+				Expect(json.Unmarshal([]byte(arr), &fromArray)).To(Succeed())
+				Expect(msgs).To(Equal(fromArray))
+			})
+
+			It("ignores --compact for jsonl", func() {
+				plain, err := run("export", "--db", dbPath, "--session", "", "--format", "jsonl")
+				Expect(err).NotTo(HaveOccurred())
+				compact, err := run("export", "--db", dbPath, "--session", "", "--format", "jsonl", "--compact")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(compact).To(Equal(plain))
+			})
+
+			It("writes csv with a header and one row per message, round-tripping commas and quotes", func() {
+				tricky := filepath.Join(dir, "tricky.json")
+				Expect(os.WriteFile(tricky, []byte(`[
+					{"sessionId":"csv","messageId":0,"type":"user","user":"brett","message":"He said \"hello, world\", then\nleft","timestamp":"2025-09-04T21:27:18.909Z"},
+					{"sessionId":"csv","messageId":1,"type":"system","message":"plain","timestamp":"2025-09-04T21:28:05.069123456+02:00"}
+				]`), 0o644)).To(Succeed())
+				trickyDB := filepath.Join(dir, "tricky.db")
+				_, err := run("import", "--log", tricky, "--db", trickyDB, "--session", "")
+				Expect(err).NotTo(HaveOccurred())
+
+				out, err := run("export", "--db", trickyDB, "--session", "", "--format", "csv")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(out).To(HavePrefix("sessionId,messageId,type,user,message,timestamp\n"))
+
+				records, err := csv.NewReader(strings.NewReader(out)).ReadAll()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(records).To(HaveLen(3), "header plus one row per message")
+				Expect(records[0]).To(Equal([]string{"sessionId", "messageId", "type", "user", "message", "timestamp"}))
+				Expect(records[1]).To(Equal([]string{
+					"csv", "0", "user", "brett", "He said \"hello, world\", then\nleft", "2025-09-04T21:27:18.909Z",
+				}))
+				// The stored offset is preserved rather than normalised to UTC,
+				// and the empty user field is an empty column.
+				Expect(records[2]).To(Equal([]string{
+					"csv", "1", "system", "", "plain", "2025-09-04T21:28:05.069123456+02:00",
+				}))
+			})
+
+			It("writes only the csv header for an empty datastore", func() {
+				emptyDB := filepath.Join(dir, "empty.db")
+				out, err := run("export", "--db", emptyDB, "--session", "", "--format", "csv")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(out).To(Equal("sessionId,messageId,type,user,message,timestamp\n"))
+			})
+
+			It("ignores --compact for csv", func() {
+				plain, err := run("export", "--db", dbPath, "--session", "", "--format", "csv")
+				Expect(err).NotTo(HaveOccurred())
+				compact, err := run("export", "--db", dbPath, "--session", "", "--format", "csv", "--compact")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(compact).To(Equal(plain))
+				Expect(strings.Count(plain, "\n")).To(Equal(4), "header plus three rows")
+			})
+
+			It("rejects an unknown format before opening or creating the datastore", func() {
+				fresh := filepath.Join(dir, "never-created.db")
+				_, err := run("export", "--db", fresh, "--session", "", "--format", "xml")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(`"xml"`))
+				Expect(err.Error()).To(ContainSubstring("json, jsonl, csv"))
+				_, statErr := os.Stat(fresh)
+				Expect(os.IsNotExist(statErr)).To(BeTrue(), "a bad --format must not create the datastore")
+			})
+
+			It("rejects an unknown format even when the datastore exists", func() {
+				_, err := run("export", "--db", dbPath, "--session", "", "--format", "JSON")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("json, jsonl, csv"))
+			})
 		})
 	})
 
