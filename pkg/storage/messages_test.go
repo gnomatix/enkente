@@ -115,6 +115,60 @@ var _ = Describe("Chat Message Persistence", func() {
 		})
 	})
 
+	Describe("ListMessagesAfter", func() {
+		ids := func(list []parser.AntigravityMessage) []int {
+			out := make([]int, len(list))
+			for i, m := range list {
+				out[i] = m.MessageID
+			}
+			return out
+		}
+
+		BeforeEach(func() {
+			for _, id := range []int{0, 1, 2, 5, 9} {
+				Expect(dbStore.PutMessage(msg("s1", id, "m"))).To(Succeed())
+			}
+		})
+
+		It("returns only messages with an ID greater than afterID", func() {
+			list, err := dbStore.ListMessagesAfter("s1", 2, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ids(list)).To(Equal([]int{5, 9}))
+		})
+
+		It("seeks past gaps: afterID need not be an existing ID", func() {
+			list, err := dbStore.ListMessagesAfter("s1", 3, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ids(list)).To(Equal([]int{5, 9}))
+		})
+
+		It("applies the limit", func() {
+			list, err := dbStore.ListMessagesAfter("s1", -1, 2)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ids(list)).To(Equal([]int{0, 1}))
+		})
+
+		It("returns an empty slice, not nil, when nothing is newer", func() {
+			list, err := dbStore.ListMessagesAfter("s1", 9, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(list).NotTo(BeNil())
+			Expect(list).To(BeEmpty())
+		})
+
+		It("matches ListMessages when started from the beginning without a limit", func() {
+			all, err := dbStore.ListMessages("s1")
+			Expect(err).NotTo(HaveOccurred())
+			after, err := dbStore.ListMessagesAfter("s1", -1, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(after).To(Equal(all))
+		})
+
+		It("returns ErrNotFound for an unknown session", func() {
+			_, err := dbStore.ListMessagesAfter("missing", -1, 0)
+			Expect(err).To(MatchError(storage.ErrNotFound))
+		})
+	})
+
 	Describe("AppendMessage", func() {
 		It("assigns strictly increasing IDs within a session and returns the stored message", func() {
 			first, err := dbStore.AppendMessage(msg("live", 0, "one"))

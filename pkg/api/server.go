@@ -40,9 +40,12 @@ const MaxIngestBodyBytes = 1 << 20
 type MessageStore interface {
 	AppendMessage(msg parser.AntigravityMessage) (parser.AntigravityMessage, error)
 	GetMessage(sessionID string, messageID int) (*parser.AntigravityMessage, error)
-	ListMessages(sessionID string) ([]parser.AntigravityMessage, error)
+	ListMessagesAfter(sessionID string, afterID int, limit int) ([]parser.AntigravityMessage, error)
 	ListSessions() ([]storage.SessionInfo, error)
 }
+
+// MaxListLimit caps the limit query parameter on message listings.
+const MaxListLimit = 1000
 
 // Option configures a Server.
 type Option func(*Server)
@@ -216,15 +219,46 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sessions)
 }
 
+// queryInt parses an optional non-negative integer query parameter.
+// ok is false when the value is present but invalid.
+func queryInt(r *http.Request, name string, def int) (val int, ok bool) {
+	raw := r.URL.Query().Get(name)
+	if raw == "" {
+		return def, true
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
+}
+
 // handleListMessages returns a session's messages as a JSON array in the
 // Antigravity chat-log shape, so the response is directly re-ingestable by
-// parser.ParseChatLog and the tail command.
+// parser.ParseChatLog and the tail command. Optional query parameters:
+// after=<messageId> returns only newer messages (for incremental polling)
+// and limit=<n> caps the count (at most MaxListLimit).
 func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	if !s.requireStore(w) {
 		return
 	}
 	sessionID := r.PathValue("sessionId")
-	messages, err := s.store.ListMessages(sessionID)
+
+	after, ok := queryInt(r, "after", -1)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "after must be a non-negative integer")
+		return
+	}
+	limit, ok := queryInt(r, "limit", 0)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "limit must be a non-negative integer")
+		return
+	}
+	if limit == 0 || limit > MaxListLimit {
+		limit = MaxListLimit
+	}
+
+	messages, err := s.store.ListMessagesAfter(sessionID, after, limit)
 	if errors.Is(err, storage.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
