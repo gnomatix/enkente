@@ -69,7 +69,11 @@ posts a ready-made JSON payload. Both require PowerShell 7, honour
 `ENKENTE_API_URL`, print the stored message, and on failure write a
 non-terminating error (including the server's reason) and exit 1, so a
 calling script can check `$LASTEXITCODE`. `make ps-lint` syntax-checks
-them; `mise` installs `pwsh` on any platform.
+them; `mise` installs `pwsh` on any platform. `make ps-test` (or
+`mise run ps-test`) builds the binary and runs `tools/test-forwarders.ps1`,
+which starts `enkente serve --headless` on a free port with a throw-away
+datastore and checks both forwarders' exit codes, printed JSON and stored
+sessions end to end.
 
 ## Message document
 
