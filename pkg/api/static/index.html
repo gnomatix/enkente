@@ -174,13 +174,20 @@
     $messages.appendChild(row);
   }
 
+  // generation increments on every select(); an in-flight poll from an
+  // earlier selection (even of the same session) must not append or
+  // reschedule, otherwise re-selecting a session duplicates messages and
+  // leaks a second poll loop.
+  var generation = 0;
+
   function pollMessages() {
     if (current === null) { return; }
     var session = current;
+    var gen = generation;
     var url = "/sessions/" + encodeURIComponent(session) + "/messages";
     if (lastId >= 0) { url += "?after=" + lastId; }
     getJSON(url).then(function (list) {
-      if (session !== current) { return; } // user switched while in flight
+      if (gen !== generation) { return; } // user switched while in flight
       setStatus(true, "connected");
       var atBottom = $messages.scrollHeight - $messages.scrollTop - $messages.clientHeight < 40;
       (list || []).forEach(function (m) {
@@ -189,15 +196,16 @@
       });
       if (list && list.length && atBottom) { $messages.scrollTop = $messages.scrollHeight; }
     }).catch(function (err) {
-      if (session === current) { setStatus(false, err.message); }
+      if (gen === generation) { setStatus(false, err.message); }
     }).then(function () {
-      if (session === current) { pollTimer = setTimeout(pollMessages, MESSAGES_EVERY); }
+      if (gen === generation) { pollTimer = setTimeout(pollMessages, MESSAGES_EVERY); }
     });
   }
 
   function select(sessionId) {
     if (sessionId === current) { return; }
     clearTimeout(pollTimer);
+    generation++;
     current = sessionId;
     lastId = -1;
     $messages.textContent = "";
