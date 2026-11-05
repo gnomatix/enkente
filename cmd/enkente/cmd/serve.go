@@ -11,11 +11,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gnomatix/enkente/pkg/api"
 	"github.com/gnomatix/enkente/pkg/parser"
+	"github.com/gnomatix/enkente/pkg/storage"
 	"github.com/gnomatix/enkente/pkg/theme"
 	"github.com/spf13/cobra"
 )
 
-var servePort int
+var (
+	servePort int
+	serveDB   string
+)
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -23,11 +27,25 @@ var serveCmd = &cobra.Command{
 	Long: `Starts an HTTP server that listens for POST /ingest requests and displays
 incoming messages in a real-time BubbleTea TUI with the worker swarm.
 
+Accepted messages are persisted to the embedded BoltDB datastore given by
+--db (pass an empty string to disable persistence) and can be read back from
+GET /sessions, GET /sessions/{id}/messages and GET /sessions/{id}/messages/{n}.
+
 Send messages with:
   curl -X POST http://localhost:8080/ingest -d '{"type":"user","message":"Hello!"}'`,
 	Run: func(cmd *cobra.Command, args []string) {
+		var opts []api.Option
+		if serveDB != "" {
+			store, err := storage.NewBoltStorage(serveDB)
+			if err != nil {
+				log.Fatalf("Failed to open database %s: %v", serveDB, err)
+			}
+			defer store.Close()
+			opts = append(opts, api.WithStore(store))
+		}
+
 		p := tea.NewProgram(
-			initialServeModel(servePort),
+			initialServeModel(servePort, serveDB),
 			tea.WithAltScreen(),
 			tea.WithMouseCellMotion(),
 		)
@@ -36,7 +54,7 @@ Send messages with:
 			p.Send(serveMsg{workerID: workerID, msg: msg})
 		}
 
-		server := api.NewServer(servePort, 4, handler)
+		server := api.NewServer(servePort, 4, handler, opts...)
 
 		go func() {
 			if err := server.Start(); err != nil {
@@ -53,6 +71,7 @@ Send messages with:
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
+	serveCmd.Flags().StringVar(&serveDB, "db", "enkente.db", "Path to the BoltDB datastore (empty string disables persistence)")
 }
 
 // Bubble Tea model for the serve command
@@ -67,11 +86,12 @@ type serveModel struct {
 	ready    bool
 	viewport viewport.Model
 	port     int
+	dbPath   string
 	msgCount int
 }
 
-func initialServeModel(port int) serveModel {
-	return serveModel{port: port}
+func initialServeModel(port int, dbPath string) serveModel {
+	return serveModel{port: port, dbPath: dbPath}
 }
 
 func (m serveModel) Init() tea.Cmd {
@@ -162,7 +182,11 @@ func (m serveModel) View() string {
 
 func (m serveModel) headerView() string {
 	title := titleStyle.Render(fmt.Sprintf("enkente :%d", m.port))
-	status := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(fmt.Sprintf(" ● LIVE  %d msgs", m.msgCount))
+	persistence := "no persistence"
+	if m.dbPath != "" {
+		persistence = "db: " + m.dbPath
+	}
+	status := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(fmt.Sprintf(" ● LIVE  %d msgs  %s", m.msgCount, persistence))
 	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)-lipgloss.Width(status)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, line, status)
 }

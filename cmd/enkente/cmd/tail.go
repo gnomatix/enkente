@@ -10,17 +10,37 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gnomatix/enkente/pkg/parser"
+	"github.com/gnomatix/enkente/pkg/storage"
 	"github.com/spf13/cobra"
 )
 
-var logFile string
+var (
+	logFile string
+	tailDB  string
+)
 
 var tailCmd = &cobra.Command{
 	Use:   "tail",
 	Short: "Live tail an Antigravity chat log to see the worker swarm",
+	Long: `Watches an Antigravity JSON chat log and streams new messages through the
+worker swarm into a live TUI.
+
+With --db, every message is also persisted to the embedded BoltDB datastore
+under its own sessionId and messageId. Re-tailing the same log is idempotent:
+a message already stored with the same identity is overwritten, not duplicated.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if logFile == "" {
 			log.Fatal("Please provide a path to the live logs.json using --log")
+		}
+
+		var store *storage.BoltStorage
+		if tailDB != "" {
+			var err error
+			store, err = storage.NewBoltStorage(tailDB)
+			if err != nil {
+				log.Fatalf("Failed to open database %s: %v", tailDB, err)
+			}
+			defer store.Close()
 		}
 
 		p := tea.NewProgram(
@@ -32,7 +52,11 @@ var tailCmd = &cobra.Command{
 		done := make(chan struct{})
 
 		handler := func(workerID int, msg parser.AntigravityMessage) {
-			p.Send(tailMsg{workerID: workerID, msg: msg})
+			var err error
+			if store != nil {
+				err = store.PutMessage(msg)
+			}
+			p.Send(tailMsg{workerID: workerID, msg: msg, err: err})
 		}
 
 		err := parser.TailChatLog(logFile, 500*time.Millisecond, 4, handler, done)
@@ -49,6 +73,7 @@ var tailCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tailCmd)
 	tailCmd.Flags().StringVarP(&logFile, "log", "l", "", "Path to the live logs.json to tail")
+	tailCmd.Flags().StringVar(&tailDB, "db", "", "Path to a BoltDB datastore to persist tailed messages into (default: none)")
 	tailCmd.MarkFlagRequired("log")
 }
 
@@ -71,6 +96,7 @@ var (
 type tailMsg struct {
 	workerID int
 	msg      parser.AntigravityMessage
+	err      error // non-nil when persisting the message failed
 }
 
 type model struct {
@@ -129,6 +155,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		msgStr := lipgloss.NewStyle().Foreground(typeColor).Render(fmt.Sprintf("%s: %s", msg.msg.Type, msg.msg.Message))
 
 		newLine := fmt.Sprintf("%s %s %s\n", timeStr, workerStr, msgStr)
+		if msg.err != nil {
+			errStr := lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(fmt.Sprintf("  ! persist failed: %v", msg.err))
+			newLine += errStr + "\n"
+		}
 		m.content += newLine
 		m.viewport.SetContent(m.content)
 		m.viewport.GotoBottom()

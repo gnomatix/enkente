@@ -33,6 +33,7 @@ The project relies on a deeply unified split-architecture:
 For an in-depth dive into the technical capabilities, architecture, and requirements, please refer to the `docs/` directory:
 * [System Requirements Spec](docs/requirements.md)
 * [Design Docs & Summaries](docs/design-docs/system-specs-summary.md)
+* [Ingestion & Chat-Log API](docs/api.md)
 
 
 ## License: Business Source License (BSL)
