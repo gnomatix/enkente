@@ -30,7 +30,7 @@ scripts and CI:
 
 ```sh
 enkente import   --log logs.json --db enkente.db [--session <id>]
-enkente export   --db enkente.db [--session <id>] [--compact]   # JSON array to stdout
+enkente export   --db enkente.db [--session <id>] [--format json|jsonl|csv] [--compact]
 enkente sessions --db enkente.db                                 # session table
 ```
 
@@ -41,8 +41,20 @@ every imported message into one session, which is needed for logs without
 a `sessionId`; the import is refused if that would make two messages share
 a `messageId`. `export` without `--session` emits every session, ordered
 by session and then message ID; with an unknown `--session` it exits
-non-zero. Its output is re-ingestable by `import`, `tail`, or
+non-zero. Its JSON output is re-ingestable by `import`, `tail`, or
 `parser.ParseChatLog`.
+
+`export --format` chooses the output shape for external analysis or
+migration (requirements §5.3): `json` (the default) is the indented
+Antigravity-shaped array described below, with `--compact` collapsing it
+to one line; `jsonl` writes one compact JSON object per line with the same
+field names, for streaming tools and line-oriented NoSQL loaders; `csv`
+writes a header row `sessionId,messageId,type,user,message,timestamp`
+followed by one row per message, quoted by `encoding/csv`, with timestamps
+in RFC 3339 nanosecond form exactly as stored (no time-zone
+normalisation). `--compact` affects only `json`. An unknown `--format` is
+a usage error naming the accepted values, rejected before the datastore is
+opened, so a typo never creates an empty database file.
 
 BoltDB permits one process per file. A second `serve` or `tail` pointed at a
 datastore that is already open fails within two seconds with a "locked by
