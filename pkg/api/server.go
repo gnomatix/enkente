@@ -2,19 +2,52 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gnomatix/enkente/pkg/parser"
+	"github.com/gnomatix/enkente/pkg/storage"
 )
 
+// DefaultSessionID is the session assigned to ingested messages that do not
+// name one. Messages forwarded from live chat bridges land here.
+const DefaultSessionID = "live"
+
 // IngestRequest represents a message submitted via the REST API.
+// Its field names mirror the Antigravity chat-log schema so that a stored
+// session can be exported and re-ingested without translation.
 type IngestRequest struct {
-	Type    string `json:"type"`
-	User    string `json:"user,omitempty"`
-	Message string `json:"message"`
+	SessionID string `json:"sessionId,omitempty"`
+	Type      string `json:"type"`
+	User      string `json:"user,omitempty"`
+	Message   string `json:"message"`
+	// Timestamp is optional and, when present, must be RFC 3339. Fractional
+	// seconds and a numeric zone offset are accepted, which covers the
+	// .NET "o" round-trip format emitted by the PowerShell forwarders.
+	Timestamp string `json:"timestamp,omitempty"`
+}
+
+// MessageStore is the persistence surface the server needs. *storage.BoltStorage
+// satisfies it; tests may substitute their own implementation.
+type MessageStore interface {
+	AppendMessage(msg parser.AntigravityMessage) (parser.AntigravityMessage, error)
+	GetMessage(sessionID string, messageID int) (*parser.AntigravityMessage, error)
+	ListMessages(sessionID string) ([]parser.AntigravityMessage, error)
+	ListSessions() ([]storage.SessionInfo, error)
+}
+
+// Option configures a Server.
+type Option func(*Server)
+
+// WithStore enables persistence: every accepted message is written to the
+// store before being dispatched to the worker pool, and the read endpoints
+// serve from it.
+func WithStore(store MessageStore) Option {
+	return func(s *Server) { s.store = store }
 }
 
 // Server manages the HTTP ingestion endpoint and dispatches messages to a handler.
@@ -22,15 +55,21 @@ type Server struct {
 	port    int
 	handler func(workerID int, msg parser.AntigravityMessage)
 	msgChan chan parser.AntigravityMessage
+	store   MessageStore
+	now     func() time.Time
 }
 
 // NewServer creates a new ingestion server on the given port.
 // numWorkers goroutines will concurrently consume messages using the handler.
-func NewServer(port int, numWorkers int, handler func(workerID int, msg parser.AntigravityMessage)) *Server {
+func NewServer(port int, numWorkers int, handler func(workerID int, msg parser.AntigravityMessage), opts ...Option) *Server {
 	s := &Server{
 		port:    port,
 		handler: handler,
 		msgChan: make(chan parser.AntigravityMessage, 100),
+		now:     time.Now,
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	// Spawn worker swarm
@@ -46,52 +85,159 @@ func NewServer(port int, numWorkers int, handler func(workerID int, msg parser.A
 	return s
 }
 
+// Handler returns the routed HTTP handler so it can be mounted or tested
+// without opening a listening socket.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /ingest", s.handleIngest)
+	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /sessions", s.handleListSessions)
+	mux.HandleFunc("GET /sessions/{sessionId}/messages", s.handleListMessages)
+	mux.HandleFunc("GET /sessions/{sessionId}/messages/{messageId}", s.handleGetMessage)
+	return mux
+}
+
 // Start begins listening for HTTP requests.
 func (s *Server) Start() error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ingest", s.handleIngest)
-	mux.HandleFunc("/health", s.handleHealth)
-
 	addr := fmt.Sprintf(":%d", s.port)
-	return http.ListenAndServe(addr, mux)
+	return http.ListenAndServe(addr, s.Handler())
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// ingestResponse is the body returned for an accepted ingest request. The
+// embedded message carries the identity (sessionId, messageId) and timestamp
+// the server stored, so a client can later retrieve exactly what it sent.
+type ingestResponse struct {
+	Status  string                    `json:"status"`
+	Message parser.AntigravityMessage `json:"message"`
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
 	var req IngestRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
+	}
+
+	if strings.TrimSpace(req.Message) == "" {
+		writeError(w, http.StatusBadRequest, "message is required")
+		return
+	}
+
+	ts := s.now().UTC()
+	if req.Timestamp != "" {
+		parsed, err := time.Parse(time.RFC3339, req.Timestamp)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "timestamp must be RFC 3339")
+			return
+		}
+		ts = parsed
 	}
 
 	msg := parser.AntigravityMessage{
-		SessionID: "live",
-		MessageID: 0,
-		Type:      req.Type,
-		User:      req.User,
+		SessionID: strings.TrimSpace(req.SessionID),
+		Type:      strings.TrimSpace(req.Type),
+		User:      strings.TrimSpace(req.User),
 		Message:   req.Message,
-		Timestamp: time.Now(),
+		Timestamp: ts,
+	}
+	if msg.SessionID == "" {
+		msg.SessionID = DefaultSessionID
+	}
+	if msg.Type == "" {
+		msg.Type = "user"
+	}
+
+	status := http.StatusAccepted
+	if s.store != nil {
+		stored, err := s.store.AppendMessage(msg)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to persist message")
+			return
+		}
+		msg = stored
+		status = http.StatusCreated
 	}
 
 	s.msgChan <- msg
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"status": "accepted"})
+	writeJSON(w, status, ingestResponse{Status: "accepted", Message: msg})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":      "ok",
+		"persistence": s.store != nil,
+	})
+}
+
+func (s *Server) requireStore(w http.ResponseWriter) bool {
+	if s.store == nil {
+		writeError(w, http.StatusServiceUnavailable, "persistence is disabled on this server")
+		return false
+	}
+	return true
+}
+
+func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	sessions, err := s.store.ListSessions()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list sessions")
+		return
+	}
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+// handleListMessages returns a session's messages as a JSON array in the
+// Antigravity chat-log shape, so the response is directly re-ingestable by
+// parser.ParseChatLog and the tail command.
+func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	sessionID := r.PathValue("sessionId")
+	messages, err := s.store.ListMessages(sessionID)
+	if errors.Is(err, storage.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list messages")
+		return
+	}
+	writeJSON(w, http.StatusOK, messages)
+}
+
+func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	sessionID := r.PathValue("sessionId")
+	messageID, err := strconv.Atoi(r.PathValue("messageId"))
+	if err != nil || messageID < 0 {
+		writeError(w, http.StatusBadRequest, "messageId must be a non-negative integer")
+		return
+	}
+	msg, err := s.store.GetMessage(sessionID, messageID)
+	if errors.Is(err, storage.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "message not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get message")
+		return
+	}
+	writeJSON(w, http.StatusOK, msg)
 }
