@@ -67,7 +67,9 @@ a message already stored with the same identity is overwritten, not duplicated.`
 			log.Fatalf("Failed to start tailer: %v", err)
 		}
 
-		if _, err := p.Run(); err != nil {
+		_, err = p.Run()
+		close(done) // stop the poller and let the worker channel drain
+		if err != nil {
 			log.Fatalf("Alas, there's been an error: %v", err)
 		}
 	},
