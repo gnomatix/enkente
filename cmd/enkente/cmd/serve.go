@@ -116,7 +116,7 @@ func runHeadless(cmd *cobra.Command, opts []api.Option) error {
 	if serveDB != "" {
 		persistence = "db " + serveDB
 	}
-	logger.Printf("enkente listening on %s (%s); POST /ingest to submit messages", ln.Addr(), persistence)
+	logger.Printf("enkente listening on %s (%s); POST /ingest to submit messages, GET / for the viewer", ln.Addr(), persistence)
 
 	if err := server.Serve(ctx, ln); err != nil {
 		return fmt.Errorf("server error: %w", err)
