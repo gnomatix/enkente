@@ -214,6 +214,44 @@ func (s *BoltStorage) ListMessagesAfter(sessionID string, afterID int, limit int
 	return messages, nil
 }
 
+// DeleteMessage removes one message. The session's sequence watermark is
+// left untouched, so a deleted ID is never handed out again by
+// AppendMessage. It returns ErrNotFound when the session or message is absent.
+func (s *BoltStorage) DeleteMessage(sessionID string, messageID int) error {
+	if messageID < 0 {
+		return ErrNotFound
+	}
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b, err := sessionBucket(tx, sessionID, false)
+		if err != nil {
+			return err
+		}
+		if b == nil {
+			return ErrNotFound
+		}
+		key := messageKey(messageID)
+		if b.Get(key) == nil {
+			return ErrNotFound
+		}
+		return b.Delete(key)
+	})
+}
+
+// DeleteSession removes a session and every message in it.
+// It returns ErrNotFound when the session does not exist.
+func (s *BoltStorage) DeleteSession(sessionID string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		chat := tx.Bucket([]byte(ChatBucket))
+		if chat == nil {
+			return fmt.Errorf("bucket %s not found", ChatBucket)
+		}
+		if chat.Bucket([]byte(sessionID)) == nil {
+			return ErrNotFound
+		}
+		return chat.DeleteBucket([]byte(sessionID))
+	})
+}
+
 // ListSessions returns a summary of every session that holds messages,
 // ordered by session ID.
 func (s *BoltStorage) ListSessions() ([]SessionInfo, error) {

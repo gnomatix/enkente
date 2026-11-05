@@ -264,6 +264,57 @@ var _ = Describe("Chat Message Persistence", func() {
 		})
 	})
 
+	Describe("DeleteMessage / DeleteSession", func() {
+		BeforeEach(func() {
+			Expect(dbStore.PutMessages([]parser.AntigravityMessage{
+				msg("a", 0, "a0"), msg("a", 1, "a1"), msg("b", 0, "b0"),
+			})).To(Succeed())
+		})
+
+		It("removes a single message and leaves the rest", func() {
+			Expect(dbStore.DeleteMessage("a", 0)).To(Succeed())
+
+			_, err := dbStore.GetMessage("a", 0)
+			Expect(err).To(MatchError(storage.ErrNotFound))
+			list, err := dbStore.ListMessages("a")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(list).To(HaveLen(1))
+			Expect(list[0].MessageID).To(Equal(1))
+		})
+
+		It("does not reuse a deleted ID on a later append", func() {
+			Expect(dbStore.DeleteMessage("a", 1)).To(Succeed())
+			appended, err := dbStore.AppendMessage(msg("a", 0, "new"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(appended.MessageID).To(Equal(2))
+		})
+
+		It("returns ErrNotFound for a missing message, session, or negative ID", func() {
+			Expect(dbStore.DeleteMessage("a", 99)).To(MatchError(storage.ErrNotFound))
+			Expect(dbStore.DeleteMessage("nope", 0)).To(MatchError(storage.ErrNotFound))
+			Expect(dbStore.DeleteMessage("a", -1)).To(MatchError(storage.ErrNotFound))
+		})
+
+		It("removes a whole session without touching others", func() {
+			Expect(dbStore.DeleteSession("a")).To(Succeed())
+
+			_, err := dbStore.ListMessages("a")
+			Expect(err).To(MatchError(storage.ErrNotFound))
+			sessions, err := dbStore.ListSessions()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sessions).To(Equal([]storage.SessionInfo{{SessionID: "b", MessageCount: 1}}))
+
+			Expect(dbStore.DeleteSession("a")).To(MatchError(storage.ErrNotFound))
+		})
+
+		It("starts a recreated session's IDs afresh", func() {
+			Expect(dbStore.DeleteSession("a")).To(Succeed())
+			appended, err := dbStore.AppendMessage(msg("a", 0, "again"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(appended.MessageID).To(Equal(1))
+		})
+	})
+
 	Describe("ListSessions", func() {
 		It("is empty for a fresh database", func() {
 			sessions, err := dbStore.ListSessions()
