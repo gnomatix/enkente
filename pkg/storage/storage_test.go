@@ -3,6 +3,7 @@ package storage_test
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -47,6 +48,14 @@ var _ = Describe("Embedded Storage Engine", func() {
 		data, err := dbStore.Get(storage.ConceptBucket, "does-not-exist")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(data).To(BeNil())
+	})
+
+	It("fails fast with a clear error when another handle holds the file lock", func() {
+		start := time.Now()
+		_, err := storage.NewBoltStorage(dbPath)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("locked by another process"))
+		Expect(time.Since(start)).To(BeNumerically("<", storage.OpenTimeout+2*time.Second))
 	})
 
 	It("returns errors for invalid buckets", func() {

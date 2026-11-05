@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -118,6 +119,13 @@ var _ = Describe("Ingestion API", func() {
 			Expect(post(h, "/ingest", `{"type":"user","message":""}`).Code).To(Equal(http.StatusBadRequest))
 			Expect(post(h, "/ingest", `{"type":"user","message":"   \n"}`).Code).To(Equal(http.StatusBadRequest))
 			Expect(post(h, "/ingest", `{"type":"user"}`).Code).To(Equal(http.StatusBadRequest))
+			Consistently(rec.count, "100ms").Should(Equal(0))
+		})
+
+		It("rejects a body larger than the ingest cap with 413", func() {
+			big := `{"type":"user","message":"` + strings.Repeat("x", api.MaxIngestBodyBytes) + `"}`
+			rr := post(h, "/ingest", big)
+			Expect(rr.Code).To(Equal(http.StatusRequestEntityTooLarge))
 			Consistently(rec.count, "100ms").Should(Equal(0))
 		})
 

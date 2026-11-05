@@ -25,11 +25,15 @@ type IngestRequest struct {
 	Type      string `json:"type"`
 	User      string `json:"user,omitempty"`
 	Message   string `json:"message"`
-	// Timestamp is optional and, when present, must be RFC 3339. Fractional
-	// seconds and a numeric zone offset are accepted, which covers the
-	// .NET "o" round-trip format emitted by the PowerShell forwarders.
+	// Timestamp is optional and, when present, must be RFC 3339 with a zone
+	// (Z or a numeric offset). Fractional seconds are accepted, which covers
+	// the .NET "o" round-trip format emitted by the PowerShell forwarders for
+	// UTC and local-kind values.
 	Timestamp string `json:"timestamp,omitempty"`
 }
+
+// MaxIngestBodyBytes caps the size of a single /ingest request body.
+const MaxIngestBodyBytes = 1 << 20
 
 // MessageStore is the persistence surface the server needs. *storage.BoltStorage
 // satisfies it; tests may substitute their own implementation.
@@ -123,7 +127,12 @@ type ingestResponse struct {
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	var req IngestRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, MaxIngestBodyBytes)).Decode(&req); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("body exceeds %d bytes", MaxIngestBodyBytes))
+			return
+		}
 		writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
@@ -168,9 +177,16 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusCreated
 	}
 
-	s.msgChan <- msg
-
+	// Answer the client as soon as the message is durable (or validated, when
+	// persistence is off), then hand it to the worker pool. Dispatch can block
+	// under backpressure; doing it after the response is flushed means a slow
+	// swarm cannot make a client time out and retry an already-stored message.
 	writeJSON(w, status, ingestResponse{Status: "accepted", Message: msg})
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+
+	s.msgChan <- msg
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
