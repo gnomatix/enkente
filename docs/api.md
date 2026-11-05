@@ -120,6 +120,26 @@ Body shape:
 {"status": "ok", "persistence": true}
 ```
 
+### `GET /`
+
+Serves a small built-in web viewer (also at `GET /ui` and `GET /ui/`) as
+`text/html`. It is a single self-contained page embedded in the binary: no
+external scripts, stylesheets or CDN assets, so it works offline and behind
+strict proxies.
+
+The page lists sessions from `GET /sessions` (refreshed every 5 s). Picking
+one renders its messages (timestamp, user or type, text) and polls
+`GET /sessions/{sessionId}/messages?after=<lastMessageId>` every 2 s,
+appending new messages and auto-scrolling. The selected session is kept in
+the URL fragment (`/#live`) so a view can be bookmarked. A status line
+reports `connected` or the last error; when persistence is disabled the
+page still loads and the status line shows the `503` error text from
+`/sessions`.
+
+Only these exact paths are served. Any other path (for example `/nope` or
+`/ui/x`) is `404`, and the JSON endpoints are unaffected. This is a seed
+for the real-time visualization of requirements §4.1, not the mind-map UI.
+
 ### `GET /sessions`
 
 Lists every session, ordered by session ID. A session whose last message
