@@ -15,6 +15,10 @@ multi-user chat streams and continuously encode semantic and contextual relation
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Usage()
 	},
+	// Execute prints the error once; without these cobra would also print
+	// "Error: ..." and the full usage text on every runtime failure.
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
