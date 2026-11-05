@@ -44,6 +44,14 @@ datastore that is already open fails within two seconds with a "locked by
 another process" error rather than hanging. Use separate `--db` files for
 concurrent processes.
 
+### PowerShell forwarders
+
+`tools/ag-forward.ps1 "text"` posts one message (`-Type`, `-User`,
+`-SessionId`, `-ApiUrl`, `-Quiet`); `vscode-extension/scripts/forward-win.ps1`
+posts a ready-made JSON payload. Both honour `ENKENTE_API_URL`, print the
+stored message, and exit 1 with an error on failure. `make ps-lint`
+syntax-checks them; `mise` installs `pwsh` on any platform.
+
 ## Message document
 
 Every stored message is an Antigravity-shaped JSON document:
@@ -75,7 +83,7 @@ Body: JSON object with the fields below.
 | `message`   | yes      | Must contain non-whitespace text. |
 | `type`      | no       | Defaults to `user`. The TUI colours `system` distinctly. |
 | `user`      | no       | Free-form identity string (the VS Code bridge resolves one). |
-| `sessionId` | no       | Defaults to `live`. The VS Code bridge sends the `enkente.sessionId` setting when it is non-empty. |
+| `sessionId` | no       | Defaults to `live`. The VS Code bridge sends the `enkente.sessionId` setting when it is non-empty; `tools/ag-forward.ps1` sends `-SessionId` or `ENKENTE_SESSION_ID`. |
 | `timestamp` | no       | RFC 3339 with a zone (`Z` or `±hh:mm`). Fractional seconds are accepted, which covers the .NET `"o"` format from the PowerShell forwarders for UTC and local-kind values; a zone-less `"o"` value (DateTimeKind.Unspecified) is rejected. Defaults to server time. |
 
 The request body is capped at 1 MiB.

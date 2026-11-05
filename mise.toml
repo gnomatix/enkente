@@ -2,6 +2,7 @@
 go = "latest"
 node = "latest"
 python = "latest"
+powershell = "latest"
 
 [tasks.build]
 description = "Build enkente for the current platform"
@@ -35,6 +36,10 @@ run = "make clean"
 [tasks.lint]
 description = "Run go vet"
 run = "make lint"
+
+[tasks.ps-lint]
+description = "Syntax-check the PowerShell forwarder scripts"
+run = "make ps-lint"
 
 [tasks.all]
 description = "Build Go binary and VS Code extension"
