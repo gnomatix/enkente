@@ -24,6 +24,10 @@ run = "make release"
 description = "Build the VS Code extension"
 run = "make extension"
 
+[tasks.extension-test]
+description = "Build and unit-test the VS Code extension"
+run = "make extension-test"
+
 [tasks.clean]
 description = "Remove all build artifacts"
 run = "make clean"
