@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -108,11 +110,52 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-// Start begins listening for HTTP requests.
+// Start begins listening for HTTP requests and blocks until the listener
+// fails. Use Serve for a server that can be stopped.
 func (s *Server) Start() error {
-	addr := fmt.Sprintf(":%d", s.port)
-	return http.ListenAndServe(addr, s.Handler())
+	return s.Serve(context.Background(), nil)
 }
+
+// ShutdownTimeout bounds how long Serve waits for in-flight requests after
+// its context is cancelled.
+const ShutdownTimeout = 5 * time.Second
+
+// Serve accepts connections on ln (or on the configured port when ln is nil)
+// until ctx is cancelled, then shuts down gracefully, draining in-flight
+// requests for up to ShutdownTimeout. It returns nil after a clean shutdown.
+func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
+	if ln == nil {
+		var err error
+		ln, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+		if err != nil {
+			return err
+		}
+	}
+
+	srv := &http.Server{Handler: s.Handler()}
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Serve(ln) }()
+
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			return err
+		}
+		<-errCh
+		return nil
+	}
+}
+
+// Addr formats the address the server listens on when Serve is given no
+// listener.
+func (s *Server) Addr() string { return fmt.Sprintf(":%d", s.port) }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
