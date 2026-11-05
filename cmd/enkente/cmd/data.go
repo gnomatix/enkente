@@ -35,12 +35,42 @@ existing message with the same identity is overwritten, not duplicated.
 
 Use --session to place every imported message in one session, overriding
 whatever sessionId the log carries. This is required for logs whose
-messages have no sessionId.`,
+messages have no sessionId. The import is refused if that would make two
+messages share a messageId, so logs from several sessions cannot be
+collapsed into one.
+
+The import is all-or-nothing: the log is validated before the datastore
+is opened, and all messages are written in a single transaction.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		messages, err := parser.ParseChatLog(importLog)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", importLog, err)
+		}
+		if len(messages) == 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "no messages in %s; nothing imported\n", importLog)
+			return nil
+		}
+
+		type identity struct {
+			session string
+			id      int
+		}
+		seen := map[identity]int{}
+		sessions := map[string]int{}
+		for i := range messages {
+			if importSession != "" {
+				messages[i].SessionID = importSession
+			}
+			if err := storage.ValidateMessage(messages[i]); err != nil {
+				return fmt.Errorf("message %d in %s: %w (use --session to assign one)", i, importLog, err)
+			}
+			key := identity{messages[i].SessionID, messages[i].MessageID}
+			if prev, dup := seen[key]; dup {
+				return fmt.Errorf("messages %d and %d in %s would both be stored as session %q messageId %d; refusing to import", prev, i, importLog, key.session, key.id)
+			}
+			seen[key] = i
+			sessions[key.session]++
 		}
 
 		store, err := storage.NewBoltStorage(importDB)
@@ -49,15 +79,8 @@ messages have no sessionId.`,
 		}
 		defer store.Close()
 
-		sessions := map[string]int{}
-		for i, msg := range messages {
-			if importSession != "" {
-				msg.SessionID = importSession
-			}
-			if err := store.PutMessage(msg); err != nil {
-				return fmt.Errorf("message %d (session %q, id %d): %w", i, msg.SessionID, msg.MessageID, err)
-			}
-			sessions[msg.SessionID]++
+		if err := store.PutMessages(messages); err != nil {
+			return err
 		}
 
 		fmt.Fprintf(cmd.OutOrStdout(), "imported %d messages into %d session(s) in %s\n", len(messages), len(sessions), importDB)

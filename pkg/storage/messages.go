@@ -45,7 +45,9 @@ func sessionBucket(tx *bbolt.Tx, sessionID string, create bool) (*bbolt.Bucket, 
 	return chat.Bucket([]byte(sessionID)), nil
 }
 
-func validateMessage(msg parser.AntigravityMessage) error {
+// ValidateMessage reports whether msg carries an identity the store can
+// file it under: a non-empty sessionId and a non-negative messageId.
+func ValidateMessage(msg parser.AntigravityMessage) error {
 	if msg.SessionID == "" {
 		return errors.New("storage: message has empty sessionId")
 	}
@@ -54,6 +56,8 @@ func validateMessage(msg parser.AntigravityMessage) error {
 	}
 	return nil
 }
+
+func validateMessage(msg parser.AntigravityMessage) error { return ValidateMessage(msg) }
 
 func writeMessage(b *bbolt.Bucket, msg parser.AntigravityMessage) error {
 	data, err := json.Marshal(msg)
@@ -87,6 +91,29 @@ func (s *BoltStorage) PutMessage(msg parser.AntigravityMessage) error {
 			return err
 		}
 		return writeMessage(b, msg)
+	})
+}
+
+// PutMessages stores every message in msgs with the semantics of PutMessage,
+// inside a single transaction: either all are written or none are. Every
+// message is validated before anything is written.
+func (s *BoltStorage) PutMessages(msgs []parser.AntigravityMessage) error {
+	for i, msg := range msgs {
+		if err := validateMessage(msg); err != nil {
+			return fmt.Errorf("message %d: %w", i, err)
+		}
+	}
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		for i, msg := range msgs {
+			b, err := sessionBucket(tx, msg.SessionID, true)
+			if err != nil {
+				return err
+			}
+			if err := writeMessage(b, msg); err != nil {
+				return fmt.Errorf("message %d (session %q, id %d): %w", i, msg.SessionID, msg.MessageID, err)
+			}
+		}
+		return nil
 	})
 }
 

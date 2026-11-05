@@ -29,11 +29,15 @@ enkente export   --db enkente.db [--session <id>] [--compact]   # JSON array to 
 enkente sessions --db enkente.db                                 # session table
 ```
 
-`import` is idempotent (same identity overwrites). `--session` forces every
-imported message into one session, which is needed for logs without a
-`sessionId`. `export` without `--session` emits every session, ordered by
-session and then message ID; its output is re-ingestable by `import`,
-`tail`, or `parser.ParseChatLog`.
+`import` is idempotent (same identity overwrites) and all-or-nothing: the
+log is validated first and written in one transaction, so a bad log never
+leaves a partial or newly created datastore behind. `--session` forces
+every imported message into one session, which is needed for logs without
+a `sessionId`; the import is refused if that would make two messages share
+a `messageId`. `export` without `--session` emits every session, ordered
+by session and then message ID; with an unknown `--session` it exits
+non-zero. Its output is re-ingestable by `import`, `tail`, or
+`parser.ParseChatLog`.
 
 BoltDB permits one process per file. A second `serve` or `tail` pointed at a
 datastore that is already open fails within two seconds with a "locked by

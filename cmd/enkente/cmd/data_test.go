@@ -8,15 +8,28 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/pflag"
 
 	"github.com/gnomatix/enkente/pkg/parser"
 	"github.com/gnomatix/enkente/pkg/storage"
 )
 
-// run executes the root command with args, capturing stdout. Every flag the
-// command accepts is passed explicitly so that package-level flag state does
-// not leak between specs.
+// resetFlags restores every subcommand flag to its default and clears its
+// Changed bit. cobra keeps flag state in package-level variables across
+// Execute calls, so without this a value (or a satisfied "required" mark)
+// from one spec would leak into the next.
+func resetFlags() {
+	for _, c := range rootCmd.Commands() {
+		c.Flags().VisitAll(func(f *pflag.Flag) {
+			_ = f.Value.Set(f.DefValue)
+			f.Changed = false
+		})
+	}
+}
+
+// run executes the root command with args, capturing stdout and stderr.
 func run(args ...string) (string, error) {
+	resetFlags()
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
@@ -79,35 +92,79 @@ var _ = Describe("Headless datastore commands", func() {
 			Expect(out).To(MatchRegexp(`other\s+1\n`))
 		})
 
-		It("places all messages in one session when --session is given", func() {
-			_, err := run("import", "--log", logPath, "--db", dbPath, "--session", "merged")
+		It("assigns --session to a log whose messages carry no sessionId", func() {
+			noSession := filepath.Join(dir, "nosession.json")
+			Expect(os.WriteFile(noSession, []byte(`[
+				{"messageId":0,"type":"user","message":"a"},
+				{"messageId":1,"type":"system","message":"b"}
+			]`), 0o644)).To(Succeed())
+
+			out, err := run("import", "--log", noSession, "--db", dbPath, "--session", "assigned")
 			Expect(err).NotTo(HaveOccurred())
+			Expect(out).To(ContainSubstring("imported 2 messages into 1 session(s)"))
 
 			store, err := storage.NewBoltStorage(dbPath)
 			Expect(err).NotTo(HaveOccurred())
 			defer store.Close()
-
 			sessions, err := store.ListSessions()
 			Expect(err).NotTo(HaveOccurred())
-			// The two sessions both carry messageId 0, so one overwrites the
-			// other under a forced session: 3 messages collapse to IDs 0 and 1.
-			Expect(sessions).To(Equal([]storage.SessionInfo{{SessionID: "merged", MessageCount: 2}}))
+			Expect(sessions).To(Equal([]storage.SessionInfo{{SessionID: "assigned", MessageCount: 2}}))
+		})
+
+		It("refuses a log without sessionIds when --session is not given, creating no datastore", func() {
+			noSession := filepath.Join(dir, "nosession.json")
+			Expect(os.WriteFile(noSession, []byte(`[
+				{"sessionId":"s","messageId":0,"type":"user","message":"a"},
+				{"messageId":1,"type":"system","message":"b"}
+			]`), 0o644)).To(Succeed())
+
+			_, err := run("import", "--log", noSession, "--db", dbPath)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("message 1"))
+			Expect(err.Error()).To(ContainSubstring("--session"))
+			_, statErr := os.Stat(dbPath)
+			Expect(os.IsNotExist(statErr)).To(BeTrue())
+		})
+
+		It("refuses to collapse several sessions into one when messageIds would collide", func() {
+			_, err := run("import", "--log", logPath, "--db", dbPath, "--session", "merged")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("would both be stored as session \"merged\" messageId 0"))
+			_, statErr := os.Stat(dbPath)
+			Expect(os.IsNotExist(statErr)).To(BeTrue())
 		})
 
 		It("fails with a parse error for a malformed log and writes nothing", func() {
 			bad := filepath.Join(dir, "bad.json")
 			Expect(os.WriteFile(bad, []byte(`{not json`), 0o644)).To(Succeed())
 
-			_, err := run("import", "--log", bad, "--db", dbPath, "--session", "")
+			_, err := run("import", "--log", bad, "--db", dbPath)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("parse"))
 			_, statErr := os.Stat(dbPath)
 			Expect(os.IsNotExist(statErr)).To(BeTrue())
 		})
 
-		It("requires --log", func() {
-			_, err := run("import", "--db", dbPath, "--session", "")
+		It("treats an empty log as a no-op without creating a datastore", func() {
+			empty := filepath.Join(dir, "empty.json")
+			Expect(os.WriteFile(empty, []byte(`[]`), 0o644)).To(Succeed())
+
+			out, err := run("import", "--log", empty, "--db", dbPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(out).To(ContainSubstring("nothing imported"))
+			_, statErr := os.Stat(dbPath)
+			Expect(os.IsNotExist(statErr)).To(BeTrue())
+		})
+
+		It("requires --log even after an earlier spec supplied it", func() {
+			_, err := run("import", "--log", logPath, "--db", dbPath)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = run("import", "--db", filepath.Join(dir, "other.db"))
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(`required flag(s) "log" not set`))
+			_, statErr := os.Stat(filepath.Join(dir, "other.db"))
+			Expect(os.IsNotExist(statErr)).To(BeTrue())
 		})
 	})
 
