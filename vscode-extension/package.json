@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "publisher": "gnomatix",
   "license": "BSL-1.1",
-  "files": ["out/**", "!out/**/*.test.js", "!out/**/*.test.js.map", "scripts/**"],
+  "files": ["out/**", "scripts/**"],
   "engines": {
     "vscode": "^1.93.0"
   },
@@ -66,7 +66,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "tsc -p ./ && node --test out/payload.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test out-test/payload.test.js",
     "lint": "eslint src --ext ts"
   },
   "devDependencies": {

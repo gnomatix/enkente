@@ -8,8 +8,9 @@
     printed as compact JSON unless -Quiet is given.
 
     Exit code 0 on success, 1 if the request fails. Failures are written to
-    the error stream so callers (and the VS Code bridge's postMessageCommand)
-    can see them.
+    the error stream as a non-terminating error, so a calling script keeps
+    running and can inspect $LASTEXITCODE. Requires PowerShell 7 (mise
+    installs it on any platform).
 
 .PARAMETER Message
     The message text. Required.
@@ -35,6 +36,7 @@
 .EXAMPLE
     ./ag-forward.ps1 -Message "Design note" -SessionId proj-a -Type system
 #>
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [Parameter(Mandatory, Position = 0)]
@@ -67,13 +69,21 @@ if ($SessionId) {
 $uri = "$($ApiUrl.TrimEnd('/'))/ingest"
 
 try {
-    $response = Invoke-RestMethod -Method Post -Uri $uri -ContentType 'application/json' -Body ($body | ConvertTo-Json -Depth 5)
+    $response = Invoke-RestMethod -Method Post -Uri $uri -ContentType 'application/json; charset=utf-8' -Body ($body | ConvertTo-Json -Depth 5)
     if (-not $Quiet) {
         $response.message | ConvertTo-Json -Compress
     }
     exit 0
 }
 catch {
-    Write-Error "enkente: failed to forward message to ${uri}: $($_.Exception.Message)"
+    # The server's own reason (e.g. {"error":"message is required"}) lives in
+    # ErrorDetails; the exception message only carries the status line.
+    $reason = $_.Exception.Message
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+        $reason = "$reason $($_.ErrorDetails.Message)"
+    }
+    # -ErrorAction Continue: under $ErrorActionPreference = 'Stop' a bare
+    # Write-Error would terminate the script before exit 1 runs.
+    Write-Error "enkente: failed to forward message to ${uri}: $reason" -ErrorAction Continue
     exit 1
 }

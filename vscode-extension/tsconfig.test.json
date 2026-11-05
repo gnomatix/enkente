@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "out-test",
+    "rootDir": "src"
+  },
+  "include": ["src/payload.ts", "src/payload.test.ts"],
+  "exclude": []
+}

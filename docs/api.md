@@ -53,9 +53,11 @@ concurrent processes.
 
 `tools/ag-forward.ps1 "text"` posts one message (`-Type`, `-User`,
 `-SessionId`, `-ApiUrl`, `-Quiet`); `vscode-extension/scripts/forward-win.ps1`
-posts a ready-made JSON payload. Both honour `ENKENTE_API_URL`, print the
-stored message, and exit 1 with an error on failure. `make ps-lint`
-syntax-checks them; `mise` installs `pwsh` on any platform.
+posts a ready-made JSON payload. Both require PowerShell 7, honour
+`ENKENTE_API_URL`, print the stored message, and on failure write a
+non-terminating error (including the server's reason) and exit 1, so a
+calling script can check `$LASTEXITCODE`. `make ps-lint` syntax-checks
+them; `mise` installs `pwsh` on any platform.
 
 ## Message document
 
@@ -120,7 +122,9 @@ Body shape:
 
 ### `GET /sessions`
 
-Lists every session holding messages, ordered by session ID.
+Lists every session, ordered by session ID. A session whose last message
+was deleted remains listed with `messageCount` 0 until the session itself
+is deleted, so its ID counter is preserved.
 
 ```json
 [{"sessionId": "live", "messageCount": 3}, {"sessionId": "proj-a", "messageCount": 12}]
@@ -148,7 +152,8 @@ One message. `404` if the session or message does not exist, `400` if
 
 Removes one message. `204` on success, `404` if the session or message
 does not exist, `400` for a malformed `messageId`. The session's ID
-counter is not rewound, so a deleted ID is never reassigned.
+counter is not rewound, so a deleted ID is never reassigned; deleting the
+last message leaves an empty session in place (listing returns `[]`).
 
 ### `DELETE /sessions/{sessionId}`
 
