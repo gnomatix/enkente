@@ -114,14 +114,19 @@ func (m serveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		footerHeight := lipgloss.Height(m.footerView())
 		verticalMarginHeight := headerHeight + footerHeight
 
+		// A terminal shorter than the header and footer (or one that reports
+		// no size at all) must not produce a negative viewport height: the
+		// viewport panics on GotoBottom when Height < 0.
+		bodyHeight := max(0, msg.Height-verticalMarginHeight)
+
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+			m.viewport = viewport.New(msg.Width, bodyHeight)
 			m.viewport.YPosition = headerHeight
 			m.viewport.HighPerformanceRendering = false
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
+			m.viewport.Height = bodyHeight
 		}
 
 	case serveMsg:
