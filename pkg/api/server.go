@@ -107,6 +107,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions/{sessionId}/messages/{messageId}", s.handleGetMessage)
 	mux.HandleFunc("DELETE /sessions/{sessionId}", s.handleDeleteSession)
 	mux.HandleFunc("DELETE /sessions/{sessionId}/messages/{messageId}", s.handleDeleteMessage)
+	s.registerWebRoutes(mux)
 	return mux
 }
 

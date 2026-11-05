@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>enkente</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d0d7de;
+    --panel: #f6f8fa; --accent: #0969da; --accent-fg: #ffffff;
+    --ok: #1a7f37; --err: #cf222e; --system: #8250df;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d;
+      --panel: #161b22; --accent: #2f81f7; --accent-fg: #ffffff;
+      --ok: #3fb950; --err: #f85149; --system: #a371f7;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 12px; padding: 10px 16px;
+    border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 16px; margin: 0; }
+  #status { font-size: 12px; color: var(--muted); }
+  #status.ok::before, #status.err::before {
+    content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle; background: var(--ok);
+  }
+  #status.err::before { background: var(--err); }
+  #status.err { color: var(--err); }
+  main { flex: 1; display: flex; min-height: 0; }
+  nav {
+    width: 240px; flex: none; overflow-y: auto; border-right: 1px solid var(--line);
+    background: var(--panel); padding: 8px 0;
+  }
+  nav h2, section h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 6px 16px;
+  }
+  nav button {
+    display: flex; justify-content: space-between; width: 100%; border: 0;
+    background: none; color: inherit; font: inherit; text-align: left;
+    padding: 6px 16px; cursor: pointer;
+  }
+  nav button:hover { background: var(--line); }
+  nav button.active { background: var(--accent); color: var(--accent-fg); }
+  nav button .count { opacity: .7; font-variant-numeric: tabular-nums; }
+  nav .empty { padding: 6px 16px; color: var(--muted); }
+  section { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #messages { flex: 1; overflow-y: auto; padding: 8px 16px; }
+  .msg {
+    display: grid; grid-template-columns: 72px 120px 1fr; gap: 10px;
+    padding: 4px 0; border-bottom: 1px solid var(--line);
+  }
+  .msg .ts { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .msg .who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg.system .who { color: var(--system); }
+  .msg .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 640px) {
+    nav { width: 150px; }
+    .msg { grid-template-columns: 1fr; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>enkente</h1>
+  <span id="status">connecting…</span>
+</header>
+<main>
+  <nav>
+    <h2>Sessions</h2>
+    <div id="sessions"><div class="empty">loading…</div></div>
+  </nav>
+  <section>
+    <h2 id="title">Select a session</h2>
+    <div id="messages"></div>
+  </section>
+</main>
+<script>
+(function () {
+  "use strict";
+  var SESSIONS_EVERY = 5000, MESSAGES_EVERY = 2000;
+  var $status = document.getElementById("status");
+  var $sessions = document.getElementById("sessions");
+  var $messages = document.getElementById("messages");
+  var $title = document.getElementById("title");
+  var current = null;   // selected sessionId
+  var lastId = -1;      // highest messageId rendered for the current session
+  var pollTimer = null;
+
+  function setStatus(ok, text) {
+    $status.className = ok ? "ok" : "err";
+    $status.textContent = text;
+  }
+
+  // Fetch JSON; on a non-2xx reply, throw an Error carrying the server's
+  // {"error": ...} text (or the status line when the body is not JSON).
+  function getJSON(url) {
+    return fetch(url, { cache: "no-store" }).then(function (res) {
+      return res.text().then(function (body) {
+        if (res.ok) { return body ? JSON.parse(body) : null; }
+        var detail = "HTTP " + res.status;
+        try { var parsed = JSON.parse(body); if (parsed && parsed.error) { detail += ": " + parsed.error; } }
+        catch (e) { /* not JSON */ }
+        throw new Error(detail);
+      });
+    });
+  }
+
+  function renderSessions(list) {
+    $sessions.textContent = "";
+    if (!list || list.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "no sessions yet";
+      $sessions.appendChild(empty);
+      return;
+    }
+    list.forEach(function (s) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      if (s.sessionId === current) { btn.className = "active"; }
+      var name = document.createElement("span");
+      name.textContent = s.sessionId;
+      var count = document.createElement("span");
+      count.className = "count";
+      count.textContent = String(s.messageCount);
+      btn.appendChild(name);
+      btn.appendChild(count);
+      btn.addEventListener("click", function () { select(s.sessionId); });
+      $sessions.appendChild(btn);
+    });
+  }
+
+  function loadSessions() {
+    getJSON("/sessions").then(function (list) {
+      setStatus(true, "connected");
+      renderSessions(list);
+    }).catch(function (err) {
+      setStatus(false, err.message);
+    });
+  }
+
+  function formatTime(ts) {
+    var d = new Date(ts);
+    return isNaN(d.getTime()) ? "" : d.toLocaleTimeString();
+  }
+
+  function appendMessage(m) {
+    var row = document.createElement("div");
+    row.className = "msg" + (m.type === "system" ? " system" : "");
+    var ts = document.createElement("span");
+    ts.className = "ts";
+    ts.textContent = formatTime(m.timestamp);
+    ts.title = m.timestamp || "";
+    var who = document.createElement("span");
+    who.className = "who";
+    who.textContent = m.user || m.type || "";
+    var text = document.createElement("span");
+    text.className = "text";
+    text.textContent = m.message || "";
+    row.appendChild(ts);
+    row.appendChild(who);
+    row.appendChild(text);
+    $messages.appendChild(row);
+  }
+
+  function pollMessages() {
+    if (current === null) { return; }
+    var session = current;
+    var url = "/sessions/" + encodeURIComponent(session) + "/messages";
+    if (lastId >= 0) { url += "?after=" + lastId; }
+    getJSON(url).then(function (list) {
+      if (session !== current) { return; } // user switched while in flight
+      setStatus(true, "connected");
+      var atBottom = $messages.scrollHeight - $messages.scrollTop - $messages.clientHeight < 40;
+      (list || []).forEach(function (m) {
+        appendMessage(m);
+        if (m.messageId > lastId) { lastId = m.messageId; }
+      });
+      if (list && list.length && atBottom) { $messages.scrollTop = $messages.scrollHeight; }
+    }).catch(function (err) {
+      if (session === current) { setStatus(false, err.message); }
+    }).then(function () {
+      if (session === current) { pollTimer = setTimeout(pollMessages, MESSAGES_EVERY); }
+    });
+  }
+
+  function select(sessionId) {
+    if (sessionId === current) { return; }
+    clearTimeout(pollTimer);
+    current = sessionId;
+    lastId = -1;
+    $messages.textContent = "";
+    $title.textContent = sessionId;
+    if (history.replaceState) { history.replaceState(null, "", "#" + encodeURIComponent(sessionId)); }
+    Array.prototype.forEach.call($sessions.querySelectorAll("button"), function (b) {
+      b.className = b.firstChild.textContent === sessionId ? "active" : "";
+    });
+    pollMessages();
+  }
+
+  loadSessions();
+  setInterval(loadSessions, SESSIONS_EVERY);
+  if (location.hash.length > 1) {
+    try { select(decodeURIComponent(location.hash.slice(1))); } catch (e) { /* bad hash */ }
+  }
+})();
+</script>
+</body>
+</html>
