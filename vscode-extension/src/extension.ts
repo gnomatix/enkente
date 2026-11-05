@@ -91,11 +91,33 @@ function setupDocumentWatcher(context: vscode.ExtensionContext) {
 
 
 
+/**
+ * Shape of a POST /ingest body. Field names follow the Antigravity chat-log
+ * schema the server stores; sessionId is omitted (server default "live")
+ * unless configured, and the timestamp is the client's send time.
+ */
+export interface IngestPayload {
+    type: string;
+    user: string;
+    message: string;
+    timestamp: string;
+    sessionId?: string;
+}
+
+export function buildIngestPayload(type: string, user: string, message: string, sessionId: string, now: Date = new Date()): IngestPayload {
+    const payload: IngestPayload = { type, user, message, timestamp: now.toISOString() };
+    if (sessionId) {
+        payload.sessionId = sessionId;
+    }
+    return payload;
+}
+
 async function postToEnkente(type: string, message: string): Promise<void> {
     const config = vscode.workspace.getConfiguration('enkente');
     const apiUrl = config.get<string>('apiUrl', 'http://localhost:8080');
+    const sessionId = config.get<string>('sessionId', '').trim();
 
-    const payload = JSON.stringify({ type, user: cachedUsername || 'anonymous', message });
+    const payload = JSON.stringify(buildIngestPayload(type, cachedUsername || 'anonymous', message, sessionId));
     const url = new URL('/ingest', apiUrl);
 
     return new Promise((resolve, reject) => {

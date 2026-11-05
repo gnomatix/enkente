@@ -71,7 +71,7 @@ Body: JSON object with the fields below.
 | `message`   | yes      | Must contain non-whitespace text. |
 | `type`      | no       | Defaults to `user`. The TUI colours `system` distinctly. |
 | `user`      | no       | Free-form identity string (the VS Code bridge resolves one). |
-| `sessionId` | no       | Defaults to `live`. |
+| `sessionId` | no       | Defaults to `live`. The VS Code bridge sends the `enkente.sessionId` setting when it is non-empty. |
 | `timestamp` | no       | RFC 3339 with a zone (`Z` or `±hh:mm`). Fractional seconds are accepted, which covers the .NET `"o"` format from the PowerShell forwarders for UTC and local-kind values; a zone-less `"o"` value (DateTimeKind.Unspecified) is rejected. Defaults to server time. |
 
 The request body is capped at 1 MiB.
