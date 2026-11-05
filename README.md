@@ -28,6 +28,27 @@ The project relies on a deeply unified split-architecture:
 
 <img src="https://outrage.dataglut.org/assets/badges/ioa-aware-badge-provisional.svg" width="300px">
 
+## Quick Start
+
+Requires Go (see `go.mod`) or `mise` to install the pinned toolchain.
+
+```sh
+make build                                   # -> dist/enkente
+dist/enkente serve --db enkente.db           # ingestion API + live TUI on :8080
+curl -X POST localhost:8080/ingest -d '{"type":"user","user":"brett","message":"Hello!"}'
+curl localhost:8080/sessions/live/messages   # read back what was stored
+
+dist/enkente import --log logs.json --db enkente.db        # load an Antigravity chat log
+dist/enkente sessions --db enkente.db                      # list sessions
+dist/enkente export --db enkente.db --session live > live.json
+dist/enkente tail --log logs.json --db enkente.db          # follow a live log into the datastore
+
+make test                                    # Go test suites
+make extension-test                          # VS Code chat bridge
+```
+
+The REST endpoints and the datastore layout are described in [docs/api.md](docs/api.md).
+
 ## Documentation
 
 For an in-depth dive into the technical capabilities, architecture, and requirements, please refer to the `docs/` directory:
