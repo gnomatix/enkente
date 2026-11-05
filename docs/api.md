@@ -16,6 +16,11 @@ enkente serve --port 8080 --db enkente.db
 persistence; `/ingest` then still fans messages out to the worker swarm and
 the TUI, but nothing is stored and the read endpoints answer `503`.
 
+`--headless` runs the same server without the TUI: each message is logged
+to stdout, and SIGINT or SIGTERM shuts it down cleanly (in-flight requests
+are drained for up to five seconds and the datastore is closed). Use it
+where no terminal exists: CI, containers, systemd.
+
 `enkente tail --log logs.json --db logs.db` persists messages from an
 Antigravity log file into a datastore, keyed by the log's own `sessionId`
 and `messageId`, so re-tailing a log is idempotent.

@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -17,8 +22,9 @@ import (
 )
 
 var (
-	servePort int
-	serveDB   string
+	servePort     int
+	serveDB       string
+	serveHeadless bool
 )
 
 var serveCmd = &cobra.Command{
@@ -31,17 +37,25 @@ Accepted messages are persisted to the embedded BoltDB datastore given by
 --db (pass an empty string to disable persistence) and can be read back from
 GET /sessions, GET /sessions/{id}/messages and GET /sessions/{id}/messages/{n}.
 
+With --headless no TUI is started: messages are logged to stdout and the
+process runs until SIGINT or SIGTERM, which shuts the server down cleanly.
+Use this under CI, containers or a service manager where no TTY exists.
+
 Send messages with:
   curl -X POST http://localhost:8080/ingest -d '{"type":"user","message":"Hello!"}'`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		var opts []api.Option
 		if serveDB != "" {
 			store, err := storage.NewBoltStorage(serveDB)
 			if err != nil {
-				log.Fatalf("Failed to open database %s: %v", serveDB, err)
+				return fmt.Errorf("open database %s: %w", serveDB, err)
 			}
 			defer store.Close()
 			opts = append(opts, api.WithStore(store))
+		}
+
+		if serveHeadless {
+			return runHeadless(cmd, opts)
 		}
 
 		p := tea.NewProgram(
@@ -56,22 +70,66 @@ Send messages with:
 
 		server := api.NewServer(servePort, 4, handler, opts...)
 
-		go func() {
-			if err := server.Start(); err != nil {
-				log.Fatalf("Server error: %v", err)
-			}
-		}()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		serverErr := make(chan error, 1)
+		go func() { serverErr <- server.Serve(ctx, nil) }()
 
-		if _, err := p.Run(); err != nil {
-			log.Fatalf("TUI error: %v", err)
+		_, err := p.Run()
+		cancel() // stop accepting requests once the TUI exits
+		if err != nil {
+			return fmt.Errorf("TUI error: %w", err)
 		}
+		if err := <-serverErr; err != nil {
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
 	},
+}
+
+// runHeadless serves without a TUI, logging each message, until a
+// termination signal arrives.
+func runHeadless(cmd *cobra.Command, opts []api.Option) error {
+	logger := log.New(cmd.OutOrStdout(), "", log.LstdFlags|log.LUTC)
+
+	handler := func(workerID int, msg parser.AntigravityMessage) {
+		sender := msg.Type
+		if msg.User != "" {
+			sender = msg.User
+		}
+		logger.Printf("[W%d] %s/%d %s: %s", workerID, msg.SessionID, msg.MessageID, sender, msg.Message)
+	}
+
+	server := api.NewServer(servePort, 4, handler, opts...)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Bind before announcing, so a taken port fails without a misleading
+	// "listening" line.
+	ln, err := net.Listen("tcp", server.Addr())
+	if err != nil {
+		return fmt.Errorf("server error: %w", err)
+	}
+
+	persistence := "persistence disabled"
+	if serveDB != "" {
+		persistence = "db " + serveDB
+	}
+	logger.Printf("enkente listening on %s (%s); POST /ingest to submit messages", ln.Addr(), persistence)
+
+	if err := server.Serve(ctx, ln); err != nil {
+		return fmt.Errorf("server error: %w", err)
+	}
+	logger.Printf("enkente shut down")
+	return nil
 }
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
 	serveCmd.Flags().StringVar(&serveDB, "db", "enkente.db", "Path to the BoltDB datastore (empty string disables persistence)")
+	serveCmd.Flags().BoolVar(&serveHeadless, "headless", false, "Run without the TUI; log to stdout and stop on SIGINT/SIGTERM")
 }
 
 // Bubble Tea model for the serve command

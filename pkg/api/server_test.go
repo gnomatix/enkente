@@ -2,7 +2,10 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -363,6 +366,53 @@ var _ = Describe("Ingestion API", func() {
 			store, err = storage.NewBoltStorage(filepath.Join(GinkgoT().TempDir(), "reopen.db"))
 			Expect(err).NotTo(HaveOccurred())
 		})
+	})
+})
+
+var _ = Describe("Serve lifecycle", func() {
+	It("serves on a listener until its context is cancelled, then shuts down cleanly", func() {
+		rec := &recorder{}
+		srv := api.NewServer(0, 1, rec.handle)
+
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).NotTo(HaveOccurred())
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- srv.Serve(ctx, ln) }()
+
+		base := "http://" + ln.Addr().String()
+		Eventually(func() error {
+			resp, err := http.Get(base + "/health")
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			_, _ = io.ReadAll(resp.Body)
+			return nil
+		}, "2s").Should(Succeed())
+
+		resp, err := http.Post(base+"/ingest", "application/json", bytes.NewBufferString(`{"type":"user","message":"over tcp"}`))
+		Expect(err).NotTo(HaveOccurred())
+		resp.Body.Close()
+		Expect(resp.StatusCode).To(Equal(http.StatusAccepted))
+		Eventually(rec.count).Should(Equal(1))
+
+		cancel()
+		Eventually(done, "3s").Should(Receive(BeNil()))
+
+		_, err = http.Get(base + "/health")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("reports a listener failure from Start when the port is taken", func() {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		Expect(err).NotTo(HaveOccurred())
+		defer ln.Close()
+		port := ln.Addr().(*net.TCPAddr).Port
+
+		err = api.NewServer(port, 1, (&recorder{}).handle).Start()
+		Expect(err).To(HaveOccurred())
 	})
 })
 
