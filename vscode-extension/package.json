@@ -26,6 +26,11 @@
           "default": true,
           "description": "Enable or disable the chat bridge"
         },
+        "enkente.sessionId": {
+          "type": "string",
+          "default": "",
+          "description": "Session (namespace) to file forwarded messages under. Leave empty to use the server default session (\"live\")."
+        },
         "enkente.postMessageCommand": {
           "type": "string",
           "default": "",
