@@ -120,6 +120,43 @@ var _ = Describe("Live Tailer", func() {
 		Expect(seen).To(Equal([]string{"A/a0", "A/a1", "B/b0", "B/b1"}))
 	})
 
+	It("reports parse errors once per distinct failure and recovers when the log becomes valid", func() {
+		Expect(os.WriteFile(tempFile, []byte(`[{"sessionId":"A","messageId":0,`), 0644)).To(Succeed())
+
+		var mu sync.Mutex
+		var errs []string
+		var processed atomic.Int32
+		opts := parser.TailOptions{OnError: func(err error) {
+			mu.Lock()
+			defer mu.Unlock()
+			errs = append(errs, err.Error())
+		}}
+		errCount := func() int { mu.Lock(); defer mu.Unlock(); return len(errs) }
+		handler := func(workerID int, msg parser.AntigravityMessage) { processed.Add(1) }
+
+		Expect(parser.TailChatLogWithOptions(tempFile, 20*time.Millisecond, 1, handler, done, opts)).To(Succeed())
+
+		// The same broken content is polled repeatedly but reported once.
+		Eventually(errCount, "1s").Should(Equal(1))
+		Consistently(errCount, "150ms").Should(Equal(1))
+		Expect(processed.Load()).To(BeZero())
+
+		// A different failure is a new report.
+		time.Sleep(50 * time.Millisecond)
+		Expect(os.WriteFile(tempFile, []byte(`{"not":"an array"}`), 0644)).To(Succeed())
+		Eventually(errCount, "1s").Should(Equal(2))
+
+		// Valid content flows and clears the condition.
+		time.Sleep(50 * time.Millisecond)
+		Expect(os.WriteFile(tempFile, []byte(`[{"sessionId":"A","messageId":0,"type":"user","message":"ok"}]`), 0644)).To(Succeed())
+		Eventually(func() int { return int(processed.Load()) }, "1s").Should(Equal(1))
+
+		// Re-breaking it reports again, even with content seen before.
+		time.Sleep(50 * time.Millisecond)
+		Expect(os.WriteFile(tempFile, []byte(`[{"sessionId":"A","messageId":0,`), 0644)).To(Succeed())
+		Eventually(errCount, "1s").Should(Equal(3))
+	})
+
 	It("emits only the appended messages when a log grows", func() {
 		Expect(os.WriteFile(tempFile, []byte(`[{"sessionId":"A","messageId":0,"type":"user","message":"a0"}]`), 0644)).To(Succeed())
 
