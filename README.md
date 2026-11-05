@@ -38,10 +38,12 @@ dist/enkente serve --db enkente.db           # ingestion API + live TUI on :8080
 dist/enkente serve --db enkente.db --headless   # same, no TTY needed (CI, containers)
 curl -X POST localhost:8080/ingest -d '{"type":"user","user":"brett","message":"Hello!"}'
 curl localhost:8080/sessions/live/messages   # read back what was stored
+# open http://localhost:8080/ for the built-in live session viewer
 
 dist/enkente import --log logs.json --db enkente.db        # load an Antigravity chat log
 dist/enkente sessions --db enkente.db                      # list sessions
 dist/enkente export --db enkente.db --session live > live.json
+dist/enkente export --db enkente.db --format csv > all.csv # or jsonl
 dist/enkente tail --log logs.json --db enkente.db          # follow a live log into the datastore
 
 make test                                    # Go test suites
