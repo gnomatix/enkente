@@ -1,0 +1,51 @@
+# CI for the Gitea Actions runner (GitHub Actions compatible syntax).
+# Mirrors the local checks: make lint, go test -race, extension unit
+# tests, PowerShell script lint.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: vet
+        run: make lint
+      - name: test (race)
+        run: go test -race -count=1 ./...
+      - name: build
+        run: make build
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: compile and unit-test the VS Code bridge
+        working-directory: vscode-extension
+        run: |
+          npm ci
+          npx tsc -p ./
+          npm test
+
+  powershell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: lint forwarder scripts
+        # pwsh ships on the standard ubuntu runner images; skip cleanly if absent.
+        run: |
+          if command -v pwsh >/dev/null 2>&1; then
+            make ps-lint
+          else
+            echo "pwsh not available on this runner; skipping ps-lint"
+          fi
