@@ -59,7 +59,10 @@ a message already stored with the same identity is overwritten, not duplicated.`
 			p.Send(tailMsg{workerID: workerID, msg: msg, err: err})
 		}
 
-		err := parser.TailChatLog(logFile, 500*time.Millisecond, 4, handler, done)
+		opts := parser.TailOptions{OnError: func(err error) {
+			p.Send(tailErrMsg{err: err})
+		}}
+		err := parser.TailChatLogWithOptions(logFile, 500*time.Millisecond, 4, handler, done, opts)
 		if err != nil {
 			log.Fatalf("Failed to start tailer: %v", err)
 		}
@@ -97,6 +100,11 @@ type tailMsg struct {
 	workerID int
 	msg      parser.AntigravityMessage
 	err      error // non-nil when persisting the message failed
+}
+
+// tailErrMsg reports that the log could not be read or parsed on a poll.
+type tailErrMsg struct {
+	err error
 }
 
 type model struct {
@@ -142,6 +150,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = bodyHeight
 		}
+
+	case tailErrMsg:
+		timeStr := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("[" + time.Now().Format("15:04:05") + "]")
+		errStr := lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(fmt.Sprintf("! log unreadable, retrying: %v", msg.err))
+		m.content += fmt.Sprintf("%s %s\n", timeStr, errStr)
+		m.viewport.SetContent(m.content)
+		m.viewport.GotoBottom()
 
 	case tailMsg:
 		colorWorker := lipgloss.Color("36") // Cyan
