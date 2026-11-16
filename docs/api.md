@@ -197,6 +197,50 @@ Removes a session and every message in it. `204` on success, `404` if the
 session does not exist. A session recreated afterwards starts its IDs
 afresh.
 
+### Mentions
+
+A mention is an explicit reference in message text: `#topic` for a subject
+tag and `@name` for a user. Rules:
+
+- The sigil must start the text or follow a character that can't be part of
+  a name. As a result, `brett@example.com` and `page#section` are not
+  mentions.
+- A name may contain letters, digits, `_`, `-` and `.`. Trailing `.` and `-`
+  are treated as punctuation and dropped.
+- Names are compared case-insensitively and returned in lower case.
+- A name made only of digits, such as `#42`, is not a mention.
+
+Mentions are computed from the stored text on every request, so they
+immediately reflect upserts and deletes. There is no separate index to fall
+out of date.
+
+#### `GET /mentions`
+
+Returns a summary of every mention across all sessions. Results are sorted by
+message count, highest first, then by kind and name. The optional
+`kind=tag|user` parameter restricts the list to one kind.
+
+```json
+[{"kind":"tag","name":"graphdb","messages":3,"sessions":2,
+  "firstSeen":{"sessionId":"s1","messageId":0,"user":"alice", "...": "..."}}]
+```
+
+- `messages` counts messages that contain the mention. A message that repeats
+  it counts once.
+- `firstSeen` is the earliest message containing the mention, which shows
+  who introduced the entity and when.
+
+An invalid `kind` returns `400`.
+
+#### `GET /mentions/{kind}/{name}/messages`
+
+Returns the messages that reference one tag or user, oldest first, in the
+chat-log shape. `{kind}` is `tag` or `user`. `limit=<n>` caps the count at
+`n`, up to 1000. If nobody has mentioned the name, the response is `[]`.
+
+Returns `400` when `kind` is invalid, `limit` is not a non-negative integer,
+or `name` is not exactly one valid mention.
+
 ## Storage layout
 
 Inside the `ChatLogs` bucket, each session is a nested BoltDB bucket named by
