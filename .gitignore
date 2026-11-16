@@ -16,3 +16,7 @@ live_chat.json
 # OS
 Thumbs.db
 .DS_Store
+
+# Local agent state
+.claude/logs/
+.claude/worktrees/
