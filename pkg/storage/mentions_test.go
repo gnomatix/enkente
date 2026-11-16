@@ -117,7 +117,7 @@ var _ = Describe("Mentions", func() {
 		It("rejects names that are not a single valid mention", func() {
 			for _, bad := range []string{"", "42", "two words", "a#b"} {
 				_, err := dbStore.MessagesMentioning(parser.MentionTag, bad, 0)
-				Expect(err).To(HaveOccurred(), bad)
+				Expect(err).To(MatchError(storage.ErrInvalidMention), bad)
 			}
 		})
 

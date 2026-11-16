@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/gnomatix/enkente/pkg/parser"
 )
+
+// ErrInvalidMention is returned for a name that is not exactly one valid
+// mention (see parser.ExtractMentions for the name rules).
+var ErrInvalidMention = errors.New("invalid mention name")
 
 // MentionSummary counts how often one #tag or @user is referenced.
 // Messages is the number of messages that mention it (a message that repeats
@@ -123,7 +128,7 @@ func (s *BoltStorage) ListMentions(kind parser.MentionKind) ([]MentionSummary, e
 func (s *BoltStorage) MessagesMentioning(kind parser.MentionKind, name string, limit int) ([]parser.AntigravityMessage, error) {
 	want := parser.ExtractMentions(string(kindSigil(kind)) + name)
 	if len(want) != 1 || want[0].Kind != kind || want[0].Name != strings.ToLower(name) {
-		return nil, fmt.Errorf("invalid %s name %q", kind, name)
+		return nil, fmt.Errorf("%w: %s %q", ErrInvalidMention, kind, name)
 	}
 	target := want[0]
 	out := []parser.AntigravityMessage{}

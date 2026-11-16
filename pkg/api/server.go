@@ -46,6 +46,8 @@ type MessageStore interface {
 	ListSessions() ([]storage.SessionInfo, error)
 	DeleteMessage(sessionID string, messageID int) error
 	DeleteSession(sessionID string) error
+	ListMentions(kind parser.MentionKind) ([]storage.MentionSummary, error)
+	MessagesMentioning(kind parser.MentionKind, name string, limit int) ([]parser.AntigravityMessage, error)
 }
 
 // MaxListLimit caps the limit query parameter on message listings.
@@ -107,6 +109,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions/{sessionId}/messages/{messageId}", s.handleGetMessage)
 	mux.HandleFunc("DELETE /sessions/{sessionId}", s.handleDeleteSession)
 	mux.HandleFunc("DELETE /sessions/{sessionId}/messages/{messageId}", s.handleDeleteMessage)
+	mux.HandleFunc("GET /mentions", s.handleListMentions)
+	mux.HandleFunc("GET /mentions/{kind}/{name}/messages", s.handleMentionMessages)
 	s.registerWebRoutes(mux)
 	return mux
 }
@@ -309,6 +313,62 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	messages, err := s.store.ListMessagesAfter(sessionID, after, limit)
 	if errors.Is(err, storage.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list messages")
+		return
+	}
+	writeJSON(w, http.StatusOK, messages)
+}
+
+// handleListMentions summarizes the #tags and @users referenced across all
+// sessions. Optional query parameter kind=tag|user restricts the list.
+func (s *Server) handleListMentions(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	var kind parser.MentionKind
+	if raw := r.URL.Query().Get("kind"); raw != "" {
+		k, ok := parser.ParseMentionKind(raw)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "kind must be tag or user")
+			return
+		}
+		kind = k
+	}
+	mentions, err := s.store.ListMentions(kind)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list mentions")
+		return
+	}
+	writeJSON(w, http.StatusOK, mentions)
+}
+
+// handleMentionMessages returns the messages that reference one #tag or
+// @user, oldest first, in the chat-log shape. {kind} is tag or user; the
+// name is matched case-insensitively. limit=<n> caps the count (at most
+// MaxListLimit). An entity nobody mentioned yields an empty array.
+func (s *Server) handleMentionMessages(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	kind, ok := parser.ParseMentionKind(r.PathValue("kind"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "kind must be tag or user")
+		return
+	}
+	limit, ok := queryInt(r, "limit", 0)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "limit must be a non-negative integer")
+		return
+	}
+	if limit == 0 || limit > MaxListLimit {
+		limit = MaxListLimit
+	}
+	messages, err := s.store.MessagesMentioning(kind, r.PathValue("name"), limit)
+	if errors.Is(err, storage.ErrInvalidMention) {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err != nil {
