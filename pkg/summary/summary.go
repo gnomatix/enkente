@@ -199,3 +199,86 @@ func (Baseline) Summarize(sessionID string, corpus map[string][]parser.Antigravi
 	}
 	return s
 }
+
+// Topic is a cluster of messages sharing a characteristic term or tag.
+type Topic struct {
+	// Label is the seed: a keyword, or "#tag" for a tag.
+	Label string `json:"label"`
+	// MessageIDs lists the member messages in ID order.
+	MessageIDs []int `json:"messageIds"`
+}
+
+// OtherTopic labels messages that match no seed.
+const OtherTopic = "other"
+
+// Topics clusters a session's messages around up to k seeds: the session's
+// tags (in first-appearance order) followed by its top keywords. Each
+// message joins the seed it contains with the highest weight (tags weigh
+// above any keyword, since a tag is an explicit statement of topic); ties go
+// to the earlier seed. Messages matching no seed join OtherTopic, which is
+// listed last and only when non-empty. Seeds with no members are dropped.
+func (b Baseline) Topics(sessionID string, corpus map[string][]parser.AntigravityMessage, k int) []Topic {
+	out := []Topic{}
+	msgs := corpus[sessionID]
+	if len(msgs) == 0 || k <= 0 {
+		return out
+	}
+	sum := b.Summarize(sessionID, corpus, -1, 0)
+	type seed struct {
+		label  string
+		tag    string
+		term   string
+		weight float64
+	}
+	var seeds []seed
+	for _, t := range sum.Tags {
+		if len(seeds) == k {
+			break
+		}
+		seeds = append(seeds, seed{label: "#" + t, tag: t, weight: math.Inf(1)})
+	}
+	for _, kw := range sum.Keywords {
+		if len(seeds) == k {
+			break
+		}
+		seeds = append(seeds, seed{label: kw.Term, term: kw.Term, weight: kw.Score})
+	}
+
+	members := make([][]int, len(seeds))
+	var other []int
+	for _, m := range msgs {
+		toks := map[string]bool{}
+		for _, t := range Tokens(m.Message) {
+			toks[t] = true
+		}
+		tags := map[string]bool{}
+		for _, men := range parser.ExtractMentions(m.Message) {
+			if men.Kind == parser.MentionTag {
+				tags[men.Name] = true
+			}
+		}
+		best := -1
+		for i, sd := range seeds {
+			hit := (sd.tag != "" && tags[sd.tag]) || (sd.term != "" && toks[sd.term])
+			if hit && (best < 0 || sd.weight > seeds[best].weight) {
+				best = i
+			}
+		}
+		if best < 0 {
+			other = append(other, m.MessageID)
+		} else {
+			members[best] = append(members[best], m.MessageID)
+		}
+	}
+	for i, sd := range seeds {
+		if len(members[i]) > 0 {
+			sort.Ints(members[i])
+			out = append(out, Topic{Label: sd.label, MessageIDs: members[i]})
+		}
+	}
+	if len(other) > 0 {
+		sort.Ints(other)
+		out = append(out, Topic{Label: OtherTopic, MessageIDs: other})
+	}
+	return out
+}

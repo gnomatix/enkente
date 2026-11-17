@@ -355,6 +355,26 @@ built on it would replace the baseline behind the same response shape.
 Returns `404` for an unknown session and `400` for a negative or non-integer
 count.
 
+### `GET /sessions/{sessionId}/topics`
+
+Groups a session's messages into topics. The baseline method works like
+this:
+
+1. Up to `k` seeds are chosen, `8` by default and `100` at most. The
+   session's tags come first, as `#tag`, followed by its top keywords.
+2. Each message joins the seed it contains with the most weight. A tag
+   outweighs any keyword. On a tie, the seed listed earlier wins.
+3. Messages that match no seed go into a final `other` topic.
+
+Every message lands in exactly one topic. Seeds with no messages are left
+out of the response.
+
+```json
+[{"label": "#graphdb", "messageIds": [1]}, {"label": "graph", "messageIds": [2, 4]}, {"label": "other", "messageIds": [3]}]
+```
+
+Returns `404` for an unknown session and `400` for a bad `k`.
+
 ### `GET /graph`
 
 Returns a node-link graph of who talks about what, in the

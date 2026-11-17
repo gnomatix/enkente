@@ -85,3 +85,50 @@ var _ = Describe("Baseline", func() {
 		Expect(s.Participants).NotTo(BeNil())
 	})
 })
+
+var _ = Describe("Topics", func() {
+	base := time.Date(2025, 9, 4, 21, 0, 0, 0, time.UTC)
+	m := func(session string, i int, text string) parser.AntigravityMessage {
+		return parser.AntigravityMessage{SessionID: session, MessageID: i, User: "u", Message: text,
+			Timestamp: base.Add(time.Duration(i) * time.Minute)}
+	}
+	corpus := map[string][]parser.AntigravityMessage{
+		"s": {
+			m("s", 0, "graph database design #storage"),
+			m("s", 1, "graph traversal speed"),
+			m("s", 2, "graph indexing"),
+			m("s", 3, "release schedule"),
+			m("s", 4, "release notes"),
+			m("s", 5, "lunch?"),
+		},
+		"t": {m("t", 0, "unrelated design chatter")},
+	}
+
+	It("groups messages under tags first, then keywords, with leftovers in other", func() {
+		topics := summary.Baseline{}.Topics("s", corpus, 3)
+		Expect(topics).To(Equal([]summary.Topic{
+			{Label: "#storage", MessageIDs: []int{0}},
+			{Label: "graph", MessageIDs: []int{1, 2}},
+			{Label: "release", MessageIDs: []int{3, 4}},
+			{Label: summary.OtherTopic, MessageIDs: []int{5}},
+		}))
+	})
+
+	It("puts every message in exactly one topic", func() {
+		seen := map[int]int{}
+		for _, t := range (summary.Baseline{}).Topics("s", corpus, 10) {
+			for _, id := range t.MessageIDs {
+				seen[id]++
+			}
+		}
+		Expect(seen).To(HaveLen(6))
+		for _, n := range seen {
+			Expect(n).To(Equal(1))
+		}
+	})
+
+	It("returns an empty list for k=0 or an unknown session", func() {
+		Expect(summary.Baseline{}.Topics("s", corpus, 0)).To(BeEmpty())
+		Expect(summary.Baseline{}.Topics("zzz", corpus, 3)).To(BeEmpty())
+	})
+})

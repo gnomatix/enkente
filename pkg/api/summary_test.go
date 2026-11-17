@@ -50,6 +50,19 @@ var _ = Describe("Summary API", func() {
 		Expect(s.Highlights).To(HaveLen(1))
 	})
 
+	It("clusters a session into topics", func() {
+		rr := get(h, "/sessions/g/topics?k=2")
+		Expect(rr.Code).To(Equal(http.StatusOK))
+		var topics []summary.Topic
+		decodeInto(rr, &topics)
+		Expect(topics).To(Equal([]summary.Topic{
+			{Label: "#graphdb", MessageIDs: []int{1}},
+			{Label: "graph", MessageIDs: []int{2}},
+		}))
+		Expect(get(h, "/sessions/g/topics?k=x").Code).To(Equal(http.StatusBadRequest))
+		Expect(get(h, "/sessions/nope/topics").Code).To(Equal(http.StatusNotFound))
+	})
+
 	It("validates parameters and session", func() {
 		Expect(get(h, "/sessions/nope/summary").Code).To(Equal(http.StatusNotFound))
 		Expect(get(h, "/sessions/g/summary?keywords=-1").Code).To(Equal(http.StatusBadRequest))
