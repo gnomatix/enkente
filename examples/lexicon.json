@@ -1,0 +1,7 @@
+[
+  {"term": "database", "senses": ["storage engine (BoltDB, a graph DB)", "a dataset or collection of records"], "synonyms": ["db", "datastore", "data store"]},
+  {"term": "graph database", "senses": ["property-graph store for concept relationships"], "synonyms": ["graph db"]},
+  {"term": "session", "senses": ["one chat conversation (sessionId)", "an HTTP or login session"]},
+  {"term": "ontology", "senses": ["formal controlled vocabulary (OBO, dbxref)", "informal topic list"], "synonyms": ["cv", "controlled vocabulary"]},
+  {"term": "model", "senses": ["machine-learning model", "data model or schema"]}
+]

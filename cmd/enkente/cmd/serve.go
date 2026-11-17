@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gnomatix/enkente/pkg/api"
+	"github.com/gnomatix/enkente/pkg/listener"
 	"github.com/gnomatix/enkente/pkg/parser"
 	"github.com/gnomatix/enkente/pkg/storage"
 	"github.com/gnomatix/enkente/pkg/theme"
@@ -25,6 +26,7 @@ var (
 	servePort     int
 	serveDB       string
 	serveHeadless bool
+	serveLexicon  string
 )
 
 var serveCmd = &cobra.Command{
@@ -52,6 +54,13 @@ Send messages with:
 			}
 			defer store.Close()
 			opts = append(opts, api.WithStore(store))
+		}
+		if serveLexicon != "" {
+			lex, err := listener.LoadLexicon(serveLexicon)
+			if err != nil {
+				return fmt.Errorf("load lexicon: %w", err)
+			}
+			opts = append(opts, api.WithLexicon(lex))
 		}
 
 		if serveHeadless {
@@ -129,6 +138,7 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
 	serveCmd.Flags().StringVar(&serveDB, "db", "enkente.db", "Path to the BoltDB datastore (empty string disables persistence)")
+	serveCmd.Flags().StringVar(&serveLexicon, "lexicon", "", "JSON lexicon of domain terms for the passive jargon/ambiguity listener (see docs/api.md)")
 	serveCmd.Flags().BoolVar(&serveHeadless, "headless", false, "Run without the TUI; log to stdout and stop on SIGINT/SIGTERM")
 }
 
