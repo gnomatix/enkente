@@ -1,10 +1,19 @@
 # enkente Ingestion & Chat-Log API
 
-The `enkente serve` command exposes a small REST surface for pushing chat
-messages into the datastore and reading them back. This covers the
-document-centric half of requirements §2 (chat-log storage, session
-namespacing) and the ingest/query half of §3.2. Concept and graph endpoints
-are not yet implemented.
+The `enkente serve` command exposes a REST surface for pushing chat messages
+into the datastore and reading them back. It covers:
+
+- **Chat-log storage and namespacing** (requirements §2): sessions, and
+  filters by user, project and time window.
+- **Explicit references** (§1): `#tag` and `@user` mentions, with who
+  introduced each one.
+- **Curated entity records** (§1 and the curation part of §3).
+- **A node-link graph export** (§2 rich data-encoding).
+- **Session summaries and topic clusters** (§1). These use a built-in
+  keyword baseline, not NLTK.
+- **The passive and active jargon/ambiguity listener** (§1).
+
+The NLTK-based analysis that `docs/requirements.md` names is not implemented.
 
 ## Running
 
@@ -86,11 +95,12 @@ Every stored message is an Antigravity-shaped JSON document:
   "type": "user",
   "user": "alice",
   "message": "Hello!",
-  "timestamp": "2026-03-18T09:15:06.1234567Z"
+  "timestamp": "2026-03-18T09:15:06.1234567Z",
+  "project": "enkente"
 }
 ```
 
-Messages are namespaced by `sessionId`; within a session, `messageId` is
+`project` is optional and omitted when empty. Messages are namespaced by `sessionId`; within a session, `messageId` is
 unique and ordering is by `messageId`. A session's message list is served in
 exactly this shape, so it can be saved to a file and fed back through
 `enkente import`, `enkente tail` or `parser.ParseChatLog`.

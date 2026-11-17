@@ -45,12 +45,16 @@ dist/enkente sessions --db enkente.db                      # list sessions
 dist/enkente export --db enkente.db --session live > live.json
 dist/enkente export --db enkente.db --format csv > all.csv # or jsonl
 dist/enkente tail --log logs.json --db enkente.db          # follow a live log into the datastore
+dist/enkente mentions --db enkente.db                      # #tag / @user summary
+dist/enkente serve --db enkente.db --lexicon examples/lexicon.json   # flag overloaded terms
 
 make test                                    # Go test suites
 make extension-test                          # VS Code chat bridge
 ```
 
 The REST endpoints and the datastore layout are described in [docs/api.md](docs/api.md).
+
+Work is tracked with [Beads](https://github.com/steveyegge/beads) (`bd ready`, `bd list`). The issue list is committed as `.beads/issues.jsonl`.
 
 ## Documentation
 
