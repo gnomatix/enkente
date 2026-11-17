@@ -132,6 +132,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /sessions/{sessionId}/messages/{messageId}", s.handleDeleteMessage)
 	mux.HandleFunc("POST /listener/analyze", s.handleAnalyze)
 	mux.HandleFunc("GET /graph", s.handleGraph)
+	mux.HandleFunc("GET /sessions/{sessionId}/summary", s.handleSessionSummary)
 	mux.HandleFunc("GET /entities", s.handleListEntities)
 	mux.HandleFunc("GET /entities/{kind}/{name}", s.handleGetEntity)
 	mux.HandleFunc("PUT /entities/{kind}/{name}", s.handlePutEntity)

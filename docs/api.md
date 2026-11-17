@@ -325,6 +325,36 @@ Errors:
 
 Records live in the `Concepts` bucket under the key `<kind>:<name>`.
 
+### `GET /sessions/{sessionId}/summary`
+
+Returns an on-demand summary of one session:
+
+- `messages`, `start` and `end`.
+- `participants`: users and their message counts, most active first.
+- `tags`: tags in the order they first appeared.
+- `keywords`: each has a `term`, `count` and `score`.
+- `highlights`: the most representative messages, in chronological order.
+
+`method` is currently `tfidf-baseline`:
+
+- **Keywords** are words of three letters or more, excluding stopwords,
+  numbers and `#`/`@` mentions. They are scored by TF-IDF against every
+  stored session, so words common to all sessions rank low.
+- **Highlights** are the messages whose distinct keywords score highest,
+  adjusted for message length.
+
+This baseline needs no NLP library. `docs/requirements.md` names NLTK for
+tokenization, part-of-speech tagging and named-entity recognition. An engine
+built on it would replace the baseline behind the same response shape.
+
+| Query param | Default | Notes |
+|-------------|---------|-------|
+| `keywords`   | 15 | Number of keywords to return (max 100; `0` for none). |
+| `highlights` | 5  | Number of highlight messages to return (max 100; `0` for none). |
+
+Returns `404` for an unknown session and `400` for a negative or non-integer
+count.
+
 ### `GET /graph`
 
 Returns a node-link graph of who talks about what, in the
