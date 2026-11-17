@@ -42,7 +42,7 @@ const MaxIngestBodyBytes = 1 << 20
 type MessageStore interface {
 	AppendMessage(msg parser.AntigravityMessage) (parser.AntigravityMessage, error)
 	GetMessage(sessionID string, messageID int) (*parser.AntigravityMessage, error)
-	ListMessagesAfter(sessionID string, afterID int, limit int) ([]parser.AntigravityMessage, error)
+	ListMessagesFiltered(sessionID string, afterID int, limit int, filter storage.MessageFilter) ([]parser.AntigravityMessage, error)
 	ListSessions() ([]storage.SessionInfo, error)
 	DeleteMessage(sessionID string, messageID int) error
 	DeleteSession(sessionID string) error
@@ -310,7 +310,28 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		limit = MaxListLimit
 	}
 
-	messages, err := s.store.ListMessagesAfter(sessionID, after, limit)
+	filter := storage.MessageFilter{User: r.URL.Query().Get("user")}
+	for _, p := range []struct {
+		name string
+		dst  *time.Time
+	}{{"since", &filter.Since}, {"until", &filter.Until}} {
+		raw := r.URL.Query().Get(p.name)
+		if raw == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, p.name+" must be an RFC 3339 timestamp")
+			return
+		}
+		*p.dst = t
+	}
+	if !filter.Since.IsZero() && !filter.Until.IsZero() && !filter.Until.After(filter.Since) {
+		writeError(w, http.StatusBadRequest, "until must be after since")
+		return
+	}
+
+	messages, err := s.store.ListMessagesFiltered(sessionID, after, limit, filter)
 	if errors.Is(err, storage.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"go.etcd.io/bbolt"
 
@@ -180,6 +182,35 @@ func (s *BoltStorage) ListMessages(sessionID string) ([]parser.AntigravityMessag
 // the first qualifying key, so polling with the last seen ID is cheap.
 // It returns ErrNotFound when the session does not exist.
 func (s *BoltStorage) ListMessagesAfter(sessionID string, afterID int, limit int) ([]parser.AntigravityMessage, error) {
+	return s.ListMessagesFiltered(sessionID, afterID, limit, MessageFilter{})
+}
+
+// MessageFilter narrows a message listing. Zero values match everything.
+// User is compared case-insensitively. Since is inclusive and Until is
+// exclusive, so consecutive windows [a,b) [b,c) never double-count.
+type MessageFilter struct {
+	User  string
+	Since time.Time
+	Until time.Time
+}
+
+// Matches reports whether msg passes the filter.
+func (f MessageFilter) Matches(msg parser.AntigravityMessage) bool {
+	if f.User != "" && !strings.EqualFold(f.User, msg.User) {
+		return false
+	}
+	if !f.Since.IsZero() && msg.Timestamp.Before(f.Since) {
+		return false
+	}
+	if !f.Until.IsZero() && !msg.Timestamp.Before(f.Until) {
+		return false
+	}
+	return true
+}
+
+// ListMessagesFiltered is ListMessagesAfter restricted to messages that match
+// filter. The limit counts matching messages only.
+func (s *BoltStorage) ListMessagesFiltered(sessionID string, afterID int, limit int, filter MessageFilter) ([]parser.AntigravityMessage, error) {
 	messages := []parser.AntigravityMessage{}
 	if afterID < -1 {
 		afterID = -1
@@ -200,6 +231,9 @@ func (s *BoltStorage) ListMessagesAfter(sessionID string, afterID int, limit int
 			var msg parser.AntigravityMessage
 			if err := json.Unmarshal(v, &msg); err != nil {
 				return fmt.Errorf("unmarshal message %x in session %s: %w", k, sessionID, err)
+			}
+			if !filter.Matches(msg) {
+				continue
 			}
 			messages = append(messages, msg)
 			if limit > 0 && len(messages) >= limit {

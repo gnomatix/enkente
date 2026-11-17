@@ -283,6 +283,34 @@ var _ = Describe("Ingestion API", func() {
 			Expect(get(h, "/sessions/nope/messages?after=1").Code).To(Equal(http.StatusNotFound))
 		})
 
+		It("filters a listing by user and time window", func() {
+			for _, b := range []string{
+				`{"sessionId":"f","user":"alice","message":"a0","timestamp":"2025-09-04T21:00:00Z"}`,
+				`{"sessionId":"f","user":"bob","message":"b1","timestamp":"2025-09-04T21:01:00Z"}`,
+				`{"sessionId":"f","user":"Alice","message":"a2","timestamp":"2025-09-04T21:02:00Z"}`,
+			} {
+				Expect(post(h, "/ingest", b).Code).To(Equal(http.StatusCreated))
+			}
+			texts := func(path string) []string {
+				rr := get(h, path)
+				Expect(rr.Code).To(Equal(http.StatusOK), path)
+				var msgs []parser.AntigravityMessage
+				decodeInto(rr, &msgs)
+				out := []string{}
+				for _, m := range msgs {
+					out = append(out, m.Message)
+				}
+				return out
+			}
+			Expect(texts("/sessions/f/messages?user=alice")).To(Equal([]string{"a0", "a2"}))
+			Expect(texts("/sessions/f/messages?since=2025-09-04T21:01:00Z")).To(Equal([]string{"b1", "a2"}))
+			Expect(texts("/sessions/f/messages?until=2025-09-04T21:01:00Z")).To(Equal([]string{"a0"}))
+			Expect(texts("/sessions/f/messages?user=alice&since=2025-09-04T21:00:30Z&limit=1")).To(Equal([]string{"a2"}))
+
+			Expect(get(h, "/sessions/f/messages?since=yesterday").Code).To(Equal(http.StatusBadRequest))
+			Expect(get(h, "/sessions/f/messages?since=2025-09-04T21:02:00Z&until=2025-09-04T21:01:00Z").Code).To(Equal(http.StatusBadRequest))
+		})
+
 		It("serves a single message and 404s for unknown identities", func() {
 			rr := post(h, "/ingest", `{"type":"user","message":"single"}`)
 			var body struct {
