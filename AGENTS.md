@@ -1,4 +1,4 @@
-<!-- push-mirror-notice:start (IT, checked 2026-11-17T04:04Z) -->
+<!-- push-mirror-notice:start (IT, checked 2026-11-17T04:42Z) -->
 > **NB: READ THIS BEFORE YOU CLONE, COMMIT OR PUSH**
 >
 > **This repository has a push-mirror entry in Gitea that pushes it to GitHub. Push code to the authoritative repo. While that mirror is running, pushes go to the Gitea repo: a mirror sync makes GitHub match Gitea, so a commit pushed only to GitHub is overwritten.**
@@ -7,10 +7,10 @@
 > |---|---|
 > | Gitea repo (the mirror pushes from here) | https://gitea.gnomatix.com/gnomatix/enkente |
 > | GitHub repo (the mirror pushes to here) | https://github.com/gnomatix/enkente |
-> | Push mirror setting in Gitea | An entry from Gitea to GitHub exists: timed sync every 8h0m0s, sync on commit is on, last ran 2026-11-17T03:24:18Z, no error recorded. |
+> | Push mirror setting in Gitea | An entry from Gitea to GitHub exists: timed sync every 8h0m0s, sync on commit is on (every push to Gitea runs it, so the last-ran time moves with each push), last ran 2026-11-17T04:37:21Z, no error recorded. |
 > | Branch `main` on the two sides | Both sides are at `6afbd1613b`. |
 >
-> These facts were read from the live repos at 2026-11-17T04:04Z. They may not be true now. A mirror can be switched off and this notice will still be here. Check them yourself before you clone or push:
+> These facts were read from the live repos at 2026-11-17T04:42Z (Gitea server clock). They may not be true now. A mirror can be switched off and this notice will still be here. Check them yourself before you clone or push:
 >
 > 1. Have the GNOMATIX OSS skills installed, including `staleness-guard` (`/plugin install staleness-guard@gnomatix-oss-skills`).
 > 2. Run `staleness-guard` on the table above, against the live repos, not this file:
