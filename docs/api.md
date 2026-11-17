@@ -237,6 +237,28 @@ message.
   `/listener/analyze` returns `503`. A body that is not valid JSON returns
   `400`.
 
+#### Active mode
+
+Add `--listener-active` along with `--lexicon` to make the listener speak up.
+If an ingested message uses an overloaded term, the server appends a
+clarification message to the same session:
+
+- It is a `system` message from user `listener`, with the same `project` as
+  the original.
+- It is stored with the next `messageId` and dispatched to the workers like
+  any other message.
+- It is also returned as `prompt` in the ingest response.
+
+Example prompt:
+
+```
+@alice Listener here: which sense of "database" did you mean? (a) storage engine (b) dataset
+```
+
+No prompt is posted for messages of type `system` or from user `listener`, so
+prompts can't trigger further prompts. `--listener-active` without
+`--lexicon` refuses to start.
+
 ### Mentions
 
 A mention is an explicit reference in message text: `#topic` for a subject

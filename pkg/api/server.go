@@ -73,6 +73,14 @@ func WithLexicon(lex *listener.Lexicon) Option {
 	return func(s *Server) { s.lexicon = lex }
 }
 
+// WithActiveListener makes the listener interrupt: when an ingested message
+// uses an overloaded term, the server posts a system message from
+// listener.PromptUser into the same session asking which sense was meant.
+// It has no effect without WithLexicon.
+func WithActiveListener() Option {
+	return func(s *Server) { s.activeListener = true }
+}
+
 // Server manages the HTTP ingestion endpoint and dispatches messages to a handler.
 type Server struct {
 	port    int
@@ -80,7 +88,9 @@ type Server struct {
 	msgChan chan parser.AntigravityMessage
 	store   MessageStore
 	lexicon *listener.Lexicon
-	now     func() time.Time
+	// activeListener posts clarification prompts; see WithActiveListener.
+	activeListener bool
+	now            func() time.Time
 }
 
 // NewServer creates a new ingestion server on the given port.
@@ -199,6 +209,9 @@ type ingestResponse struct {
 	// Listener carries jargon and ambiguity metadata when the server has a
 	// lexicon; it is omitted otherwise.
 	Listener *listener.Summary `json:"listener,omitempty"`
+	// Prompt is the clarification message the active listener posted into
+	// the same session, when it posted one.
+	Prompt *parser.AntigravityMessage `json:"prompt,omitempty"`
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
@@ -262,6 +275,23 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	if s.lexicon != nil {
 		sum := s.lexicon.Summarize(msg.Message)
 		resp.Listener = &sum
+		if s.activeListener && msg.Type != "system" && msg.User != listener.PromptUser {
+			if text := listener.Prompt(sum, msg.User); text != "" {
+				prompt := parser.AntigravityMessage{
+					SessionID: msg.SessionID, Type: "system", User: listener.PromptUser,
+					Message: text, Timestamp: s.now().UTC(), Project: msg.Project,
+				}
+				if s.store != nil {
+					stored, err := s.store.AppendMessage(prompt)
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to persist listener prompt")
+						return
+					}
+					prompt = stored
+				}
+				resp.Prompt = &prompt
+			}
+		}
 	}
 	writeJSON(w, status, resp)
 	if f, ok := w.(http.Flusher); ok {
@@ -269,6 +299,9 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.msgChan <- msg
+	if resp.Prompt != nil {
+		s.msgChan <- *resp.Prompt
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

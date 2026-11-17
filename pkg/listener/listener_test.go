@@ -108,3 +108,26 @@ var _ = Describe("Lexicon", func() {
 		Expect(err).To(HaveOccurred())
 	})
 })
+
+var _ = Describe("Prompt", func() {
+	lex, _ := listener.NewLexicon([]listener.Entry{
+		{Term: "database", Senses: []string{"storage engine", "dataset"}, Synonyms: []string{"db"}},
+		{Term: "model", Senses: []string{"ML model", "schema"}},
+		{Term: "ontology", Senses: []string{"controlled vocabulary"}},
+	})
+
+	It("asks about one overloaded term with lettered senses", func() {
+		Expect(listener.Prompt(lex.Summarize("the db and the db"), "alice")).To(Equal(
+			`@alice Listener here: which sense of "database" did you mean? (a) storage engine (b) dataset`))
+	})
+
+	It("lists several terms in first-occurrence order", func() {
+		Expect(listener.Prompt(lex.Summarize("model in the database"), "")).To(Equal(
+			`Listener here: which senses did you mean? "model" (a) ML model (b) schema; "database" (a) storage engine (b) dataset`))
+	})
+
+	It("is empty when nothing is ambiguous, and skips unaddressable authors", func() {
+		Expect(listener.Prompt(lex.Summarize("an ontology"), "alice")).To(BeEmpty())
+		Expect(listener.Prompt(lex.Summarize("db"), "Alice Smith")).To(HavePrefix("Listener here:"))
+	})
+})

@@ -177,3 +177,42 @@ func (l *Lexicon) Summarize(text string) Summary {
 	sort.Strings(over)
 	return Summary{Flags: flags, Overloaded: over}
 }
+
+// PromptUser is the author of messages the active listener posts. The
+// server never prompts on messages from this user, so prompts cannot loop.
+const PromptUser = "listener"
+
+// Prompt returns the clarification question for the overloaded terms in a
+// summary, addressed to author when known, or "" when nothing is ambiguous.
+// Each term lists its senses as lettered options so a reply can be short:
+//
+//	@alice Listener here: which sense of "database" did you mean? (a) storage engine (b) dataset
+func Prompt(sum Summary, author string) string {
+	var terms, parts []string
+	var lastOpts string
+	seen := map[string]bool{}
+	for _, f := range sum.Flags {
+		if !f.Overloaded || seen[f.Term] {
+			continue
+		}
+		seen[f.Term] = true
+		var opts []string
+		for i, sense := range f.Senses {
+			opts = append(opts, fmt.Sprintf("(%c) %s", 'a'+i, sense))
+		}
+		lastOpts = strings.Join(opts, " ")
+		terms = append(terms, f.Term)
+		parts = append(parts, fmt.Sprintf("%q %s", f.Term, lastOpts))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	prefix := "Listener here: "
+	if author = strings.TrimSpace(author); author != "" && !strings.ContainsAny(author, " \t") {
+		prefix = "@" + author + " " + prefix
+	}
+	if len(parts) == 1 {
+		return fmt.Sprintf("%swhich sense of %q did you mean? %s", prefix, terms[0], lastOpts)
+	}
+	return prefix + "which senses did you mean? " + strings.Join(parts, "; ")
+}
