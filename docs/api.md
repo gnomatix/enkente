@@ -205,6 +205,38 @@ Removes a session and every message in it. `204` on success, `404` if the
 session does not exist. A session recreated afterwards starts its IDs
 afresh.
 
+### Passive listener (jargon and ambiguity)
+
+Start the server with `--lexicon path.json` to enable it. The lexicon is a
+JSON array of terms. For an example, see `examples/lexicon.json`:
+
+```json
+[{"term": "database", "senses": ["storage engine", "a dataset"], "synonyms": ["db", "datastore"]}]
+```
+
+A term with two or more `senses` is *overloaded*. `synonyms` map other
+spellings to the term. How matching works:
+
+- Terms and synonyms match whole words, ignoring case and punctuation.
+- Multi-word phrases are allowed. When two phrases start at the same word,
+  the longer one wins, so `graph db` is matched before `db`.
+- A phrase may belong to only one term. If two terms claim the same phrase,
+  the server refuses to start.
+
+The listener is passive. It only adds metadata and never changes or blocks a
+message.
+
+- **On ingest:** the `POST /ingest` response gains a `listener` object:
+  `{"flags": [...], "overloaded": ["database"]}`. Each flag has `term`,
+  `matched` (the phrase as written), `overloaded`, `senses`, `synonym` (true
+  when a synonym was used) and `count`.
+- **`POST /listener/analyze`:** takes `{"message": "..."}` and returns the
+  same object for a draft, without storing it. This supports checking a
+  phrasing before sending.
+- **Without a lexicon:** ingest responses omit `listener`, and
+  `/listener/analyze` returns `503`. A body that is not valid JSON returns
+  `400`.
+
 ### Mentions
 
 A mention is an explicit reference in message text: `#topic` for a subject

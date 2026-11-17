@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gnomatix/enkente/pkg/listener"
 	"github.com/gnomatix/enkente/pkg/parser"
 	"github.com/gnomatix/enkente/pkg/storage"
 )
@@ -66,12 +67,19 @@ func WithStore(store MessageStore) Option {
 	return func(s *Server) { s.store = store }
 }
 
+// WithLexicon enables the passive listener: ingest responses carry jargon and
+// ambiguity metadata, and POST /listener/analyze previews a draft.
+func WithLexicon(lex *listener.Lexicon) Option {
+	return func(s *Server) { s.lexicon = lex }
+}
+
 // Server manages the HTTP ingestion endpoint and dispatches messages to a handler.
 type Server struct {
 	port    int
 	handler func(workerID int, msg parser.AntigravityMessage)
 	msgChan chan parser.AntigravityMessage
 	store   MessageStore
+	lexicon *listener.Lexicon
 	now     func() time.Time
 }
 
@@ -112,6 +120,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sessions/{sessionId}/messages/{messageId}", s.handleGetMessage)
 	mux.HandleFunc("DELETE /sessions/{sessionId}", s.handleDeleteSession)
 	mux.HandleFunc("DELETE /sessions/{sessionId}/messages/{messageId}", s.handleDeleteMessage)
+	mux.HandleFunc("POST /listener/analyze", s.handleAnalyze)
 	mux.HandleFunc("GET /mentions", s.handleListMentions)
 	mux.HandleFunc("GET /mentions/{kind}/{name}/messages", s.handleMentionMessages)
 	s.registerWebRoutes(mux)
@@ -181,6 +190,9 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 type ingestResponse struct {
 	Status  string                    `json:"status"`
 	Message parser.AntigravityMessage `json:"message"`
+	// Listener carries jargon and ambiguity metadata when the server has a
+	// lexicon; it is omitted otherwise.
+	Listener *listener.Summary `json:"listener,omitempty"`
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +252,12 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	// persistence is off), then hand it to the worker pool. Dispatch can block
 	// under backpressure; doing it after the response is flushed means a slow
 	// swarm cannot make a client time out and retry an already-stored message.
-	writeJSON(w, status, ingestResponse{Status: "accepted", Message: msg})
+	resp := ingestResponse{Status: "accepted", Message: msg}
+	if s.lexicon != nil {
+		sum := s.lexicon.Summarize(msg.Message)
+		resp.Listener = &sum
+	}
+	writeJSON(w, status, resp)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -345,6 +362,24 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, messages)
+}
+
+// handleAnalyze previews the listener's flags for a draft message without
+// storing or dispatching it. Body: {"message": "..."}. 503 without a lexicon.
+func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
+	if s.lexicon == nil {
+		writeError(w, http.StatusServiceUnavailable, "listener is not configured (start the server with a lexicon)")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, MaxIngestBodyBytes)
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "body must be JSON with a message field")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.lexicon.Summarize(req.Message))
 }
 
 // handleListMentions summarizes the #tags and @users referenced across all
