@@ -27,6 +27,7 @@ var (
 	serveDB       string
 	serveHeadless bool
 	serveLexicon  string
+	serveActive   bool
 )
 
 var serveCmd = &cobra.Command{
@@ -61,6 +62,11 @@ Send messages with:
 				return fmt.Errorf("load lexicon: %w", err)
 			}
 			opts = append(opts, api.WithLexicon(lex))
+			if serveActive {
+				opts = append(opts, api.WithActiveListener())
+			}
+		} else if serveActive {
+			return fmt.Errorf("--listener-active needs --lexicon")
 		}
 
 		if serveHeadless {
@@ -138,6 +144,7 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
 	serveCmd.Flags().StringVar(&serveDB, "db", "enkente.db", "Path to the BoltDB datastore (empty string disables persistence)")
+	serveCmd.Flags().BoolVar(&serveActive, "listener-active", false, "Post a clarification prompt into the session when a message uses an overloaded lexicon term (needs --lexicon)")
 	serveCmd.Flags().StringVar(&serveLexicon, "lexicon", "", "JSON lexicon of domain terms for the passive jargon/ambiguity listener (see docs/api.md)")
 	serveCmd.Flags().BoolVar(&serveHeadless, "headless", false, "Run without the TUI; log to stdout and stop on SIGINT/SIGTERM")
 }
