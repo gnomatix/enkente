@@ -174,10 +174,16 @@ not exist.
 | Query param | Notes |
 |-------------|-------|
 | `after`     | Return only messages with `messageId` greater than this. Use the last `messageId` seen to poll incrementally. |
-| `limit`     | Maximum number of messages to return. Default and cap are 1000. |
+| `limit`     | Maximum number of matching messages to return. Default and cap are 1000. |
+| `user`      | Only messages from this user (case-insensitive). |
+| `since`     | Only messages with `timestamp` at or after this RFC 3339 time. |
+| `until`     | Only messages with `timestamp` before this RFC 3339 time. Adjacent `[since, until)` windows never overlap. |
 
-Both must be non-negative integers (`400` otherwise). An empty result is
-`[]`, not `null`.
+`after` and `limit` must be non-negative integers. `since` and `until` must
+be RFC 3339 timestamps, and when both are given, `until` must be later than
+`since`. Any violation returns `400`. Filters combine with `after`, so
+incremental polling of one user's messages works. An empty result is `[]`,
+not `null`.
 
 ### `GET /sessions/{sessionId}/messages/{messageId}`
 
