@@ -22,7 +22,7 @@ var _ = Describe("ExtractMentions", func() {
 		Entry("keeps inner dots and hyphens", "#v1.2-beta and @j.doe", []parser.Mention{tag("v1.2-beta"), user("j.doe")}),
 		Entry("inside parentheses", "(see #ontology)", []parser.Mention{tag("ontology")}),
 		Entry("unicode names", "#café @renée", []parser.Mention{tag("café"), user("renée")}),
-		Entry("ignores e-mail addresses", "mail me at brett@example.com", nil),
+		Entry("ignores e-mail addresses", "mail me at user@example.com", nil),
 		Entry("ignores URL fragments", "https://example.com/page#section and /path/#x", nil),
 		Entry("ignores markdown headings", "# Heading\n## Sub", nil),
 		Entry("ignores numeric issue refs", "fixed in #42", nil),

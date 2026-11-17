@@ -95,7 +95,7 @@ var _ = Describe("Ingestion API", func() {
 		})
 
 		It("accepts a message with 202 and dispatches it to a worker", func() {
-			rr := post(h, "/ingest", `{"type":"user","user":"brett","message":"Hello!"}`)
+			rr := post(h, "/ingest", `{"type":"user","user":"alice","message":"Hello!"}`)
 			Expect(rr.Code).To(Equal(http.StatusAccepted))
 
 			var body struct {
@@ -106,7 +106,7 @@ var _ = Describe("Ingestion API", func() {
 			Expect(body.Status).To(Equal("accepted"))
 			Expect(body.Message.SessionID).To(Equal(api.DefaultSessionID))
 			Expect(body.Message.MessageID).To(Equal(0))
-			Expect(body.Message.User).To(Equal("brett"))
+			Expect(body.Message.User).To(Equal("alice"))
 			Expect(body.Message.Timestamp).NotTo(BeZero())
 
 			Eventually(rec.count).Should(Equal(1))
@@ -195,7 +195,7 @@ var _ = Describe("Ingestion API", func() {
 		})
 
 		It("persists an ingested message before dispatch, assigning a session and message ID", func() {
-			rr := post(h, "/ingest", `{"type":"user","user":"brett","message":"persist me"}`)
+			rr := post(h, "/ingest", `{"type":"user","user":"alice","message":"persist me"}`)
 			Expect(rr.Code).To(Equal(http.StatusCreated))
 
 			var body struct {
@@ -208,7 +208,7 @@ var _ = Describe("Ingestion API", func() {
 			stored, err := store.GetMessage(body.Message.SessionID, body.Message.MessageID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(stored.Message).To(Equal("persist me"))
-			Expect(stored.User).To(Equal("brett"))
+			Expect(stored.User).To(Equal("alice"))
 
 			// The worker sees the same identity the client was told about.
 			Eventually(rec.count).Should(Equal(1))
@@ -370,7 +370,7 @@ var _ = Describe("Ingestion API", func() {
 		})
 
 		It("exports a session in a shape ParseChatLog can read back", func() {
-			Expect(post(h, "/ingest", `{"sessionId":"rt","type":"user","user":"brett","message":"round","timestamp":"2025-09-04T21:27:18.909Z"}`).Code).To(Equal(http.StatusCreated))
+			Expect(post(h, "/ingest", `{"sessionId":"rt","type":"user","user":"alice","message":"round","timestamp":"2025-09-04T21:27:18.909Z"}`).Code).To(Equal(http.StatusCreated))
 			Expect(post(h, "/ingest", `{"sessionId":"rt","type":"system","message":"trip"}`).Code).To(Equal(http.StatusCreated))
 
 			rr := get(h, "/sessions/rt/messages")
@@ -383,7 +383,7 @@ var _ = Describe("Ingestion API", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(parsed).To(HaveLen(2))
 			Expect(parsed[0].SessionID).To(Equal("rt"))
-			Expect(parsed[0].User).To(Equal("brett"))
+			Expect(parsed[0].User).To(Equal("alice"))
 			Expect(parsed[0].Message).To(Equal("round"))
 			want := time.Date(2025, 9, 4, 21, 27, 18, 909000000, time.UTC)
 			Expect(parsed[0].Timestamp.Equal(want)).To(BeTrue())

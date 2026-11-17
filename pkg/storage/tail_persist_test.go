@@ -26,13 +26,13 @@ var _ = Describe("Tailer to storage persistence", func() {
 	)
 
 	const logV1 = `[
-		{"sessionId":"s","messageId":0,"type":"user","user":"brett","message":"zero","timestamp":"2025-09-04T21:27:18.909Z"},
+		{"sessionId":"s","messageId":0,"type":"user","user":"alice","message":"zero","timestamp":"2025-09-04T21:27:18.909Z"},
 		{"sessionId":"s","messageId":1,"type":"system","message":"one","timestamp":"2025-09-04T21:28:05.069Z"}
 	]`
 	const logV2 = `[
-		{"sessionId":"s","messageId":0,"type":"user","user":"brett","message":"zero","timestamp":"2025-09-04T21:27:18.909Z"},
+		{"sessionId":"s","messageId":0,"type":"user","user":"alice","message":"zero","timestamp":"2025-09-04T21:27:18.909Z"},
 		{"sessionId":"s","messageId":1,"type":"system","message":"one","timestamp":"2025-09-04T21:28:05.069Z"},
-		{"sessionId":"s","messageId":2,"type":"user","user":"brett","message":"two","timestamp":"2025-09-04T21:29:00Z"}
+		{"sessionId":"s","messageId":2,"type":"user","user":"alice","message":"two","timestamp":"2025-09-04T21:29:00Z"}
 	]`
 
 	BeforeEach(func() {

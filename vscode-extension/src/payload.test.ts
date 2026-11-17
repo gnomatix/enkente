@@ -6,18 +6,18 @@ import { buildIngestPayload } from './payload';
 const fixed = new Date('2026-03-18T09:15:06.123Z');
 
 test('omits sessionId when empty so the server default applies', () => {
-    const p = buildIngestPayload('user', 'brett', 'Hello!', '', fixed);
-    assert.deepEqual(p, { type: 'user', user: 'brett', message: 'Hello!', timestamp: '2026-03-18T09:15:06.123Z' });
+    const p = buildIngestPayload('user', 'alice', 'Hello!', '', fixed);
+    assert.deepEqual(p, { type: 'user', user: 'alice', message: 'Hello!', timestamp: '2026-03-18T09:15:06.123Z' });
     assert.ok(!('sessionId' in p));
 });
 
 test('includes a trimmed sessionId when configured', () => {
-    const p = buildIngestPayload('user', 'brett', 'Hello!', '  proj-a ', fixed);
+    const p = buildIngestPayload('user', 'alice', 'Hello!', '  proj-a ', fixed);
     assert.equal(p.sessionId, 'proj-a');
 });
 
 test('treats a whitespace-only sessionId as unset', () => {
-    const p = buildIngestPayload('user', 'brett', 'Hello!', '   ', fixed);
+    const p = buildIngestPayload('user', 'alice', 'Hello!', '   ', fixed);
     assert.ok(!('sessionId' in p));
 });
 

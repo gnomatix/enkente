@@ -35,7 +35,7 @@ var _ = Describe("Chat Message Persistence", func() {
 			SessionID: session,
 			MessageID: id,
 			Type:      "user",
-			User:      "brett",
+			User:      "alice",
 			Message:   text,
 			Timestamp: ts,
 		}
@@ -50,7 +50,7 @@ var _ = Describe("Chat Message Persistence", func() {
 			Expect(got.SessionID).To(Equal("s1"))
 			Expect(got.MessageID).To(Equal(0))
 			Expect(got.Type).To(Equal("user"))
-			Expect(got.User).To(Equal("brett"))
+			Expect(got.User).To(Equal("alice"))
 			Expect(got.Message).To(Equal("hello"))
 			Expect(got.Timestamp.Equal(ts)).To(BeTrue())
 		})

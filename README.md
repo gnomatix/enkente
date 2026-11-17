@@ -36,7 +36,7 @@ Requires Go (see `go.mod`) or `mise` to install the pinned toolchain.
 make build                                   # -> dist/enkente
 dist/enkente serve --db enkente.db           # ingestion API + live TUI on :8080
 dist/enkente serve --db enkente.db --headless   # same, no TTY needed (CI, containers)
-curl -X POST localhost:8080/ingest -d '{"type":"user","user":"brett","message":"Hello!"}'
+curl -X POST localhost:8080/ingest -d '{"type":"user","user":"alice","message":"Hello!"}'
 curl localhost:8080/sessions/live/messages   # read back what was stored
 # open http://localhost:8080/ for the built-in live session viewer
 

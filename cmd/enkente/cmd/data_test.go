@@ -48,9 +48,9 @@ var _ = Describe("Headless datastore commands", func() {
 	)
 
 	const antigravityLog = `[
-		{"sessionId":"1ee3cafd","messageId":0,"type":"user","user":"brett","message":"Are you able to retrieve and process an RSS feed?","timestamp":"2025-09-04T21:27:18.909Z"},
+		{"sessionId":"1ee3cafd","messageId":0,"type":"user","user":"alice","message":"Are you able to retrieve and process an RSS feed?","timestamp":"2025-09-04T21:27:18.909Z"},
 		{"sessionId":"1ee3cafd","messageId":1,"type":"system","message":"Yes, I can!","timestamp":"2025-09-04T21:28:05.069Z"},
-		{"sessionId":"other","messageId":0,"type":"user","user":"brett","message":"Different session","timestamp":"2025-09-05T10:00:00Z"}
+		{"sessionId":"other","messageId":0,"type":"user","user":"alice","message":"Different session","timestamp":"2025-09-05T10:00:00Z"}
 	]`
 
 	BeforeEach(func() {
@@ -279,7 +279,7 @@ var _ = Describe("Headless datastore commands", func() {
 			It("writes csv with a header and one row per message, round-tripping commas and quotes", func() {
 				tricky := filepath.Join(dir, "tricky.json")
 				Expect(os.WriteFile(tricky, []byte(`[
-					{"sessionId":"csv","messageId":0,"type":"user","user":"brett","message":"He said \"hello, world\", then\nleft","timestamp":"2025-09-04T21:27:18.909Z"},
+					{"sessionId":"csv","messageId":0,"type":"user","user":"alice","message":"He said \"hello, world\", then\nleft","timestamp":"2025-09-04T21:27:18.909Z"},
 					{"sessionId":"csv","messageId":1,"type":"system","message":"plain","timestamp":"2025-09-04T21:28:05.069123456+02:00"}
 				]`), 0o644)).To(Succeed())
 				trickyDB := filepath.Join(dir, "tricky.db")
@@ -295,7 +295,7 @@ var _ = Describe("Headless datastore commands", func() {
 				Expect(records).To(HaveLen(3), "header plus one row per message")
 				Expect(records[0]).To(Equal([]string{"sessionId", "messageId", "type", "user", "message", "timestamp", "project"}))
 				Expect(records[1]).To(Equal([]string{
-					"csv", "0", "user", "brett", "He said \"hello, world\", then\nleft", "2025-09-04T21:27:18.909Z", "",
+					"csv", "0", "user", "alice", "He said \"hello, world\", then\nleft", "2025-09-04T21:27:18.909Z", "",
 				}))
 				// The stored offset is preserved rather than normalised to UTC,
 				// and the empty user field is an empty column.

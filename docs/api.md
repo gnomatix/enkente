@@ -84,7 +84,7 @@ Every stored message is an Antigravity-shaped JSON document:
   "sessionId": "live",
   "messageId": 1,
   "type": "user",
-  "user": "brett",
+  "user": "alice",
   "message": "Hello!",
   "timestamp": "2026-03-18T09:15:06.1234567Z"
 }
@@ -265,7 +265,7 @@ A mention is an explicit reference in message text: `#topic` for a subject
 tag and `@name` for a user. Rules:
 
 - The sigil must start the text or follow a character that can't be part of
-  a name. As a result, `brett@example.com` and `page#section` are not
+  a name. As a result, `user@example.com` and `page#section` are not
   mentions.
 - A name may contain letters, digits, `_`, `-` and `.`. Trailing `.` and `-`
   are treated as punctuation and dropped.
