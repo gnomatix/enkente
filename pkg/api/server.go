@@ -121,6 +121,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /sessions/{sessionId}", s.handleDeleteSession)
 	mux.HandleFunc("DELETE /sessions/{sessionId}/messages/{messageId}", s.handleDeleteMessage)
 	mux.HandleFunc("POST /listener/analyze", s.handleAnalyze)
+	mux.HandleFunc("GET /graph", s.handleGraph)
 	mux.HandleFunc("GET /entities", s.handleListEntities)
 	mux.HandleFunc("GET /entities/{kind}/{name}", s.handleGetEntity)
 	mux.HandleFunc("PUT /entities/{kind}/{name}", s.handlePutEntity)
@@ -336,24 +337,8 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		limit = MaxListLimit
 	}
 
-	filter := storage.MessageFilter{User: r.URL.Query().Get("user"), Project: r.URL.Query().Get("project")}
-	for _, p := range []struct {
-		name string
-		dst  *time.Time
-	}{{"since", &filter.Since}, {"until", &filter.Until}} {
-		raw := r.URL.Query().Get(p.name)
-		if raw == "" {
-			continue
-		}
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, p.name+" must be an RFC 3339 timestamp")
-			return
-		}
-		*p.dst = t
-	}
-	if !filter.Since.IsZero() && !filter.Until.IsZero() && !filter.Until.After(filter.Since) {
-		writeError(w, http.StatusBadRequest, "until must be after since")
+	filter, ok := queryFilter(w, r)
+	if !ok {
 		return
 	}
 
@@ -441,6 +426,66 @@ func (s *Server) handleMentionMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, messages)
+}
+
+// queryFilter reads the user, project, since and until query parameters,
+// writing a 400 and returning ok=false when a timestamp is malformed or the
+// window is empty.
+func queryFilter(w http.ResponseWriter, r *http.Request) (storage.MessageFilter, bool) {
+	q := r.URL.Query()
+	filter := storage.MessageFilter{User: q.Get("user"), Project: q.Get("project")}
+	for _, p := range []struct {
+		name string
+		dst  *time.Time
+	}{{"since", &filter.Since}, {"until", &filter.Until}} {
+		raw := q.Get(p.name)
+		if raw == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, p.name+" must be an RFC 3339 timestamp")
+			return filter, false
+		}
+		*p.dst = t
+	}
+	if !filter.Since.IsZero() && !filter.Until.IsZero() && !filter.Until.After(filter.Since) {
+		writeError(w, http.StatusBadRequest, "until must be after since")
+		return filter, false
+	}
+	return filter, true
+}
+
+// GraphStore builds the node-link graph; *storage.BoltStorage implements it.
+type GraphStore interface {
+	Graph(sessionID string, filter storage.MessageFilter) (*storage.Graph, error)
+}
+
+// handleGraph returns the who-mentions-what graph. Query parameters: session
+// (one session, 404 if unknown) plus the message-listing filters.
+func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request) {
+	if !s.requireStore(w) {
+		return
+	}
+	gs, ok := s.store.(GraphStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "the configured store does not support graphs")
+		return
+	}
+	filter, ok := queryFilter(w, r)
+	if !ok {
+		return
+	}
+	g, err := gs.Graph(r.URL.Query().Get("session"), filter)
+	if errors.Is(err, storage.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to build graph")
+		return
+	}
+	writeJSON(w, http.StatusOK, g)
 }
 
 // pathMessageID parses the {messageId} path value, writing a 400 on failure.
