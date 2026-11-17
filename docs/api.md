@@ -303,6 +303,36 @@ Errors:
 
 Records live in the `Concepts` bucket under the key `<kind>:<name>`.
 
+### `GET /graph`
+
+Returns a node-link graph of who talks about what, in the
+`{"nodes":[...],"edges":[...]}` shape that force-directed layouts such as
+d3-force and Cytoscape read.
+
+**Nodes:**
+- Each node has `id` (`user:<name>` or `tag:<name>`), `kind`, `name`,
+  `messages`, `firstSeen` and `lastSeen`.
+- Message authors and `@` mentions share the `user:` namespace, so writing
+  as `alice` and being mentioned as `@alice` count toward one node.
+- `messages` counts the messages a user wrote plus the messages that mention
+  the node.
+
+**Edges:**
+- Each edge has `source`, `target`, `relation` and a `weight` equal to the
+  number of messages behind it.
+- `mentions` goes from a message author to each tag or user they referenced.
+  Self-mentions are skipped.
+- `co-occurs` joins two tags that appear in the same message. Each pair
+  appears once, with `source` sorting before `target`.
+- Nodes, and edges by `source` then `target`, are listed in a fixed sort
+  order.
+
+**Query parameters:**
+- `session` restricts the graph to one session. An unknown session returns
+  `404`.
+- `user`, `project`, `since` and `until` filter the input messages, exactly
+  as on message listings.
+
 ## Storage layout
 
 Inside the `ChatLogs` bucket, each session is a nested BoltDB bucket named by
