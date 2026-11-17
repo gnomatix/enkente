@@ -15,6 +15,9 @@ type AntigravityMessage struct {
 	User      string    `json:"user,omitempty"`
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
+	// Project is an optional namespace above the session (for example a
+	// repository or research programme). Empty means unassigned.
+	Project string `json:"project,omitempty"`
 }
 
 // ParseChatLog reads the provided Antigravity JSON log file and unmarshals it.

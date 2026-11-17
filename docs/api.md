@@ -49,7 +49,7 @@ migration (requirements §5.3): `json` (the default) is the indented
 Antigravity-shaped array described below, with `--compact` collapsing it
 to one line; `jsonl` writes one compact JSON object per line with the same
 field names, for streaming tools and line-oriented NoSQL loaders; `csv`
-writes a header row `sessionId,messageId,type,user,message,timestamp`
+writes a header row `sessionId,messageId,type,user,message,timestamp,project`
 followed by one row per message, quoted by `encoding/csv`, with timestamps
 in RFC 3339 nanosecond form exactly as stored (no time-zone
 normalisation). `--compact` affects only `json`. An unknown `--format` is
@@ -106,6 +106,7 @@ Body: JSON object with the fields below.
 | `message`   | yes      | Must contain non-whitespace text. |
 | `type`      | no       | Defaults to `user`. The TUI colours `system` distinctly. |
 | `user`      | no       | Free-form identity string (the VS Code bridge resolves one). |
+| `project`   | no       | Namespace above the session, such as a repository or programme. Trimmed; omitted from stored JSON when empty. |
 | `sessionId` | no       | Defaults to `live`. The VS Code bridge sends the `enkente.sessionId` setting when it is non-empty; `tools/ag-forward.ps1` sends `-SessionId` or `ENKENTE_SESSION_ID`. |
 | `timestamp` | no       | RFC 3339 with a zone (`Z` or `±hh:mm`). Fractional seconds are accepted, which covers the .NET `"o"` format from the PowerShell forwarders for UTC and local-kind values; a zone-less `"o"` value (DateTimeKind.Unspecified) is rejected. Defaults to server time. |
 
@@ -176,6 +177,7 @@ not exist.
 | `after`     | Return only messages with `messageId` greater than this. Use the last `messageId` seen to poll incrementally. |
 | `limit`     | Maximum number of matching messages to return. Default and cap are 1000. |
 | `user`      | Only messages from this user (case-insensitive). |
+| `project`   | Only messages filed under this project (case-insensitive). Unassigned messages never match. |
 | `since`     | Only messages with `timestamp` at or after this RFC 3339 time. |
 | `until`     | Only messages with `timestamp` before this RFC 3339 time. Adjacent `[since, until)` windows never overlap. |
 

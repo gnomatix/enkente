@@ -307,6 +307,13 @@ var _ = Describe("Ingestion API", func() {
 			Expect(texts("/sessions/f/messages?until=2025-09-04T21:01:00Z")).To(Equal([]string{"a0"}))
 			Expect(texts("/sessions/f/messages?user=alice&since=2025-09-04T21:00:30Z&limit=1")).To(Equal([]string{"a2"}))
 
+			Expect(post(h, "/ingest", `{"sessionId":"f","user":"bob","message":"p3","project":"  enkente ","timestamp":"2025-09-04T21:03:00Z"}`).Code).To(Equal(http.StatusCreated))
+			Expect(texts("/sessions/f/messages?project=ENKENTE")).To(Equal([]string{"p3"}))
+			var stored []parser.AntigravityMessage
+			decodeInto(get(h, "/sessions/f/messages?project=enkente"), &stored)
+			Expect(stored).To(HaveLen(1))
+			Expect(stored[0].Project).To(Equal("enkente"), "project is trimmed on ingest")
+
 			Expect(get(h, "/sessions/f/messages?since=yesterday").Code).To(Equal(http.StatusBadRequest))
 			Expect(get(h, "/sessions/f/messages?since=2025-09-04T21:02:00Z&until=2025-09-04T21:01:00Z").Code).To(Equal(http.StatusBadRequest))
 		})

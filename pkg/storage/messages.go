@@ -186,17 +186,21 @@ func (s *BoltStorage) ListMessagesAfter(sessionID string, afterID int, limit int
 }
 
 // MessageFilter narrows a message listing. Zero values match everything.
-// User is compared case-insensitively. Since is inclusive and Until is
+// User and Project are compared case-insensitively. Since is inclusive and Until is
 // exclusive, so consecutive windows [a,b) [b,c) never double-count.
 type MessageFilter struct {
-	User  string
-	Since time.Time
-	Until time.Time
+	User    string
+	Project string
+	Since   time.Time
+	Until   time.Time
 }
 
 // Matches reports whether msg passes the filter.
 func (f MessageFilter) Matches(msg parser.AntigravityMessage) bool {
 	if f.User != "" && !strings.EqualFold(f.User, msg.User) {
+		return false
+	}
+	if f.Project != "" && !strings.EqualFold(f.Project, msg.Project) {
 		return false
 	}
 	if !f.Since.IsZero() && msg.Timestamp.Before(f.Since) {

@@ -39,7 +39,7 @@ var exportFormats = []string{"json", "jsonl", "csv"}
 
 // exportCSVHeader is the first row of a csv export. Its column names match
 // the JSON field names of parser.AntigravityMessage.
-var exportCSVHeader = []string{"sessionId", "messageId", "type", "user", "message", "timestamp"}
+var exportCSVHeader = []string{"sessionId", "messageId", "type", "user", "message", "timestamp", "project"}
 
 // writeExport writes msgs to w in the given format. compact only affects
 // json; jsonl is always one compact object per line and csv has no
@@ -73,6 +73,7 @@ func writeExport(w io.Writer, format string, msgs []parser.AntigravityMessage, c
 				msg.User,
 				msg.Message,
 				msg.Timestamp.Format(time.RFC3339Nano),
+				msg.Project,
 			}
 			if err := cw.Write(row); err != nil {
 				return err
@@ -158,7 +159,7 @@ message ID, in one of three formats chosen with --format:
          --compact emits it on a single line instead of indented.
   jsonl  one compact JSON object per line, with the same field names as
          json, for streaming tools and line-oriented NoSQL loaders.
-  csv    a header row (sessionId,messageId,type,user,message,timestamp)
+  csv    a header row (sessionId,messageId,type,user,message,timestamp,project)
          followed by one row per message, quoted as encoding/csv requires;
          timestamps are RFC 3339 with nanoseconds, as stored.
 
