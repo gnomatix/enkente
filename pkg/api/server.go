@@ -32,6 +32,9 @@ type IngestRequest struct {
 	// the .NET "o" round-trip format emitted by the PowerShell forwarders for
 	// UTC and local-kind values.
 	Timestamp string `json:"timestamp,omitempty"`
+	// Project optionally files the message under a namespace above the
+	// session. Leading and trailing whitespace is removed.
+	Project string `json:"project,omitempty"`
 }
 
 // MaxIngestBodyBytes caps the size of a single /ingest request body.
@@ -213,6 +216,7 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		User:      strings.TrimSpace(req.User),
 		Message:   req.Message,
 		Timestamp: ts,
+		Project:   strings.TrimSpace(req.Project),
 	}
 	if msg.SessionID == "" {
 		msg.SessionID = DefaultSessionID
@@ -310,7 +314,7 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		limit = MaxListLimit
 	}
 
-	filter := storage.MessageFilter{User: r.URL.Query().Get("user")}
+	filter := storage.MessageFilter{User: r.URL.Query().Get("user"), Project: r.URL.Query().Get("project")}
 	for _, p := range []struct {
 		name string
 		dst  *time.Time

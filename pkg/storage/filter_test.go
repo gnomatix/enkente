@@ -73,6 +73,15 @@ var _ = Describe("ListMessagesFiltered", func() {
 		Expect(list(0, 0, storage.MessageFilter{User: "alice"})).To(Equal([]int{2, 4}))
 	})
 
+	It("filters by project case-insensitively, excluding unassigned messages", func() {
+		Expect(dbStore.PutMessage(parser.AntigravityMessage{
+			SessionID: "s1", MessageID: 7, Type: "user", User: "alice",
+			Message: "p", Timestamp: base.Add(10 * time.Minute), Project: "Enkente",
+		})).To(Succeed())
+		Expect(list(-1, 0, storage.MessageFilter{Project: "enkente"})).To(Equal([]int{7}))
+		Expect(list(-1, 0, storage.MessageFilter{Project: "other"})).To(BeEmpty())
+	})
+
 	It("still reports ErrNotFound for an unknown session", func() {
 		_, err := dbStore.ListMessagesFiltered("missing", -1, 0, storage.MessageFilter{User: "alice"})
 		Expect(err).To(MatchError(storage.ErrNotFound))

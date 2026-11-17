@@ -288,19 +288,19 @@ var _ = Describe("Headless datastore commands", func() {
 
 				out, err := run("export", "--db", trickyDB, "--session", "", "--format", "csv")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(out).To(HavePrefix("sessionId,messageId,type,user,message,timestamp\n"))
+				Expect(out).To(HavePrefix("sessionId,messageId,type,user,message,timestamp,project\n"))
 
 				records, err := csv.NewReader(strings.NewReader(out)).ReadAll()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(records).To(HaveLen(3), "header plus one row per message")
-				Expect(records[0]).To(Equal([]string{"sessionId", "messageId", "type", "user", "message", "timestamp"}))
+				Expect(records[0]).To(Equal([]string{"sessionId", "messageId", "type", "user", "message", "timestamp", "project"}))
 				Expect(records[1]).To(Equal([]string{
-					"csv", "0", "user", "brett", "He said \"hello, world\", then\nleft", "2025-09-04T21:27:18.909Z",
+					"csv", "0", "user", "brett", "He said \"hello, world\", then\nleft", "2025-09-04T21:27:18.909Z", "",
 				}))
 				// The stored offset is preserved rather than normalised to UTC,
 				// and the empty user field is an empty column.
 				Expect(records[2]).To(Equal([]string{
-					"csv", "1", "system", "", "plain", "2025-09-04T21:28:05.069123456+02:00",
+					"csv", "1", "system", "", "plain", "2025-09-04T21:28:05.069123456+02:00", "",
 				}))
 			})
 
@@ -308,7 +308,7 @@ var _ = Describe("Headless datastore commands", func() {
 				emptyDB := filepath.Join(dir, "empty.db")
 				out, err := run("export", "--db", emptyDB, "--session", "", "--format", "csv")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(out).To(Equal("sessionId,messageId,type,user,message,timestamp\n"))
+				Expect(out).To(Equal("sessionId,messageId,type,user,message,timestamp,project\n"))
 			})
 
 			It("ignores --compact for csv", func() {
