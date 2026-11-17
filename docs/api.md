@@ -281,6 +281,28 @@ chat-log shape. `{kind}` is `tag` or `user`. `limit=<n>` caps the count at
 Returns `400` when `kind` is invalid, `limit` is not a non-negative integer,
 or `name` is not exactly one valid mention.
 
+### Entities (curation)
+
+An entity is a tag or user, identified by `{kind}/{name}` with the same name
+rules as mentions. It can carry a curated record: a `description`, free-form
+`attributes`, and accumulated `notes`. Notes hold stories or anecdotes about
+the entity. Each note has `text`, `author` and `addedAt`.
+
+| Route | Effect |
+|-------|--------|
+| `GET /entities` | All curated records, ordered by kind then name. |
+| `GET /entities/{kind}/{name}` | `{"kind","name","curated","mentions"}`. `curated` is the record, or `null` if nobody has curated it. `mentions` is the summary from `GET /mentions` (including `firstSeen`), or `null` if nobody has mentioned it. Returns `404` only when both are empty. |
+| `PUT /entities/{kind}/{name}` | Creates or replaces the record. The body may contain only `description`, `attributes` and `notes`; any other field returns `400`. Notes without `addedAt` are stamped with the server time. Returns `200` with the saved record. |
+| `POST /entities/{kind}/{name}/notes` | Appends one note (`{"text","author"}`), creating the record if needed. Returns `201`. |
+| `DELETE /entities/{kind}/{name}` | Removes the curated record and leaves mentions in the chat log untouched. Returns `204`, or `404` if there is no record. |
+
+Errors:
+
+- An invalid kind or name returns `400`, and so does an empty note text.
+- These routes need a datastore. Without one they return `503`.
+
+Records live in the `Concepts` bucket under the key `<kind>:<name>`.
+
 ## Storage layout
 
 Inside the `ChatLogs` bucket, each session is a nested BoltDB bucket named by
